@@ -1555,10 +1555,11 @@ class GeneralizedStructureModel(nn.Module):
         full_features = n_features + additional_features
         module_classes = self.module_classes
         bilinear = self.bilinear
+        module_count = len(module_init_dict)+1 if bilinear else 0
         
         #Common parameters and obligatory layers are going to be written here
         execution_order = nn.ModuleDict()  
-        execution_order["SharedVariableModule"] = SharedVariableModule(full_features, module_classes, model_type, init_dict)
+        execution_order["SharedVariableModule"] = SharedVariableModule(full_features, module_classes, model_type, module_count, init_dict)
         execution_order["InputOutputEmbeddingModule"] = InputOutputEmbeddingModule(n_features, module_classes, model_type, additional_features, init_dict)
 
         for module_name, (module_fn, module_params) in module_init_dict.items():
