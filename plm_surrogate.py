@@ -1671,8 +1671,9 @@ class GeneralizedStructureModel(nn.Module):
         determine_if_run = lambda x: self.active_modules[x] > 1e-08
         all_modules = list(self.execution_order.keys())
         all_active_modules = list(filter(determine_if_run, all_modules))
-        
-        fn_outputs, accs_text = [], [f"Active Modules: {all_active_modules}", "-"*70]
+
+        print("-"*70)
+        fn_outputs, accs_text = [], [f"Active Modules: {all_active_modules}"]
         for i, dataloader in enumerate(dataloaders):
             if hasattr(dataloader, "name"):
                 dloader_name = dataloader.name
@@ -1927,11 +1928,11 @@ def train_model(model, datasets, lrs, wds, reset_state, use_module_per_epoch, se
     if class_weights is not None:
         class_weights = torch.from_numpy(np.array(class_weights)).to(float).to(sent_device)
     if not given_distr and base_n_classes > 1:
-        loss_fn = nn.CrossEntropyLoss(reduction = "none" if sent_device.type == "xla" else "mean", weight = class_weights)
+        loss_fn = nn.CrossEntropyLoss(reduction = "none", weight = class_weights)
     elif not given_distr and base_n_classes == 1:
-        loss_fn = nn.BCEWithLogitsLoss(reduction = "none" if sent_device.type == "xla" else "mean", weight = class_weights)
+        loss_fn = nn.BCEWithLogitsLoss(reduction = "none", weight = class_weights)
     else: 
-        loss_fn = nn.KLDivLoss(reduction='batchmean')
+        loss_fn = nn.KLDivLoss(reduction = 'none')
     optimizer_fn = torch.optim.AdamW(model.parameters(), lr = 0, weight_decay = 0)
 
     epochs = min(len(lrs), len(wds), len(use_module_per_epoch), len(reset_state))
@@ -1976,13 +1977,12 @@ def train_model(model, datasets, lrs, wds, reset_state, use_module_per_epoch, se
                 else:
                     y_pred = F.log_softmax(y_pred, dim = -1)
 
-                mask_for_loss = masks.clone() if not bilinear else masks*masks.permute(0, 2, 1)
-                mask_for_loss = mask_for_loss.reshape((-1, ))
-
+                metrics_mask = masks.clone().flatten(0, 1) if not bilinear else (masks*masks.permute(0, 2, 1)).flatten(0, 1)
                 given_distr_shape = (-1, ) if not given_distr else (-1, base_n_classes)
                 loss_val_unmasked = loss_fn(y_pred.reshape((-1, base_n_classes)).squeeze(-1), 
                                             y_true.reshape(given_distr_shape))
-                loss_val = torch.sum(loss_val_unmasked*mask_for_loss)/torch.sum(mask_for_loss)
+                loss_val_unmasked = loss_val_unmasked.reshape((metrics_mask.shape[0], -1))
+                loss_val = torch.sum(loss_val_unmasked*metrics_mask)/torch.sum(metrics_mask)
                 prior_loss_component = unwrapped_model(model).get_prior_loss()
                 loss_val_optim = loss_val*N_tokens + prior_loss_component
             
