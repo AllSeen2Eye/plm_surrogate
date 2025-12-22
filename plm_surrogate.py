@@ -128,13 +128,16 @@ class StructureDataset(Dataset):
             max_len = seq_len+2
         else:
             max_len = self.max_len+2
-        
-        x_feats = torch.zeros((max_len, 23))
+
+        other_feats = others.shape[-1] if len(others) > 0 else 0
+        x_feats = torch.zeros((max_len, 23+other_feats))
         masks = torch.zeros((max_len, 1))
 
         x_feats[0, 21] = 1
-        x_feats[1:seq_len+1, :21] = torch.from_numpy(np.reshape(np.array(list(seq)), (-1, 1)) == x_tokens).to(float)
         x_feats[seq_len+1, 22] = 1
+        x_feats[1:seq_len+1, :21] = torch.from_numpy(np.reshape(np.array(list(seq)), (-1, 1)) == x_tokens).to(float)
+        if other_feats > 0:
+            x_feats[1:seq_len+1, 23:] = torch.from_numpy(others).to(float)
         
         y_true = self.class_tokenizer.tokenize(label, seq_len, max_len)
         masks[1:seq_len+1] = 1
@@ -150,14 +153,8 @@ class ClassTokenizer():
         self.bilinear = bilinear
         self.n_dims = np.prod(y_tokens.shape) if given_distr else 1
         self.name = name
-
-    def tokenize(self, y_seq, seq_len, max_len):
-        if self.bilinear:
-            return self.bilinear_tokenizer(self, y_seq, seq_len, max_len)
-        else:
-            return self.sequence_tokenizer(self, y_seq, seq_len, max_len)
-            
-    def sequence_tokenize(self, y_seq, seq_len, max_len):
+        
+    def sequence_tokenizer(self, y_seq, seq_len, max_len):
         y_true = torch.zeros((max_len, self.n_dims)).squeeze(dim=-1)
         if not self.given_distr: 
             if type(y_seq) != str: 
@@ -181,6 +178,12 @@ class ClassTokenizer():
         y_true[1:seq_len+1, 1:seq_len+1] = y_input_true
         return y_true
     
+    def tokenize(self, y_seq, seq_len, max_len):
+        if self.bilinear:
+            return self.bilinear_tokenizer(y_seq, seq_len, max_len)
+        else:
+            return self.sequence_tokenizer(y_seq, seq_len, max_len)
+            
     def collate_fn(self, tensor_tuple):
         x_feats, y_true, masks = zip(*tensor_tuple)
         x_feats = pad_sequence(x_feats, batch_first=True, padding_value=0)
@@ -412,9 +415,9 @@ def call_profiler(model, dataset_profiler, profiler_options):
             with record_function("model_inference"):
                 model.inference_model(dataset_profiler)
     sort_by = f"{device.type.lower()}_time_total"
-    with open("{TRC_DIR}/model_profile.log", "w") as profiler_logs:
+    with open(f"{TRC_DIR}/model_profile.log", "w") as profiler_logs:
         profiler_logs.write(profiler_context.key_averages().table(sort_by=sort_by))
-    profiler_context.export_chrome_trace("{TRC_DIR}/model_trace.json")
+    profiler_context.export_chrome_trace(f"{TRC_DIR}/model_trace.json")
     
 
 ### MODEL MODULE OBJECTS
@@ -441,14 +444,18 @@ class SharedVariableModule(nn.Module):
         
 class InputOutputEmbeddingModule(nn.Module):
     def __init__(self, n_features, module_classes, 
-                 model_type, additional_features = 0, init_dict = {}):
+                 model_type, cut_features = 0, 
+                 additional_features = 0, init_dict = {}):
         super().__init__()
+        n_features -= additional_features
         base_n_classes = module_classes[-1]
         input_n_classes, output_n_classes, input_proj_weights, output_proj_weights = get_module_classes(module_classes)
         self.input_proj_weights = input_proj_weights
         self.output_proj_weights = output_proj_weights
-        
+
+        self.cut_features = cut_features
         self.additional_features = additional_features
+        
         names = ["bos_emb", "eos_emb", "unk_emb", "rotate_embeds", 
                  "bias_embeds", "nat_embed", "pad_emb", "class_unk_emb", 
                  "class_bos_emb", "class_eos_emb", "class_pad_emb", "class_freq_emb"]
@@ -456,7 +463,8 @@ class InputOutputEmbeddingModule(nn.Module):
                   (1, 1, n_features), (1, len(aa_alphabet)-1, n_features), (1, 1, n_features), (1, 1, base_n_classes),
                   (1, 1, base_n_classes), (1, 1, base_n_classes), (1, 1, base_n_classes), (1, 1, base_n_classes)]
         if additional_features > 0:
-            names.append("add_embed"), shapes.append((1, additional_features, additional_features))
+            names.append("add_embed"), shapes.append((2, 1, additional_features))
+            names.append("lda_class_map"), shapes.append((1, additional_features + cut_features, base_n_classes))
         self.parameter_list = create_parameter_list(names, shapes, model_type, init_dict)
         
     def forward(self, input_dict):
@@ -467,12 +475,16 @@ class InputOutputEmbeddingModule(nn.Module):
         special_tokens_embeds = x_onehot[..., 20:]@torch.cat([lp.unk_emb, lp.bos_emb, lp.eos_emb], dim = 1)
         orig_embed_full = orig_embed_full + special_tokens_embeds
         if self.additional_features > 0:
-            orig_embed_other = input_dict["x_other"]@lp.add_embed
+            mean_add_feats, std_add_feats = lp.add_embed[:1], lp.add_embed[1:]
+            orig_embed_other = (input_dict["x_other"][..., self.cut_features:]-mean_add_feats)*std_add_feats
             orig_embed_full = torch.cat([orig_embed_full, orig_embed_other], dim = -1)
+        
         input_dict["x_embeds"] = orig_embed_full
 
         special_tokens_logits = x_onehot[..., 20:]@torch.cat([lp.class_unk_emb, lp.class_bos_emb, lp.class_eos_emb], dim = 1)
         class_logits = special_tokens_logits + lp.class_freq_emb*masks
+        if self.additional_features > 0:
+            class_logits = class_logits + input_dict["x_other"]@lp.lda_class_map
         return class_logits
 
 class PhysioChemical2Class(nn.Module):
@@ -1381,7 +1393,7 @@ class StructureModelConfig():
         fake_model_init_dict = self.config_model_init()
         fake_model_init_dict["set_grad_kwargs"]["verbose"] = False 
         fake_model = GeneralizedStructureModel(**fake_model_init_dict)
-        all_module_names = ["SharedVariableModule", "InputOutputEmbeddingModule"] + self["model/module_order"]
+        all_module_names = ["SharedVariableModule"] + self["model/module_order"]
         
         use_module_per_epoch, set_grad_array, reset_state, lrs, wds = [], [], [], [], []
         for element_num in range(len(active_list)):
@@ -1422,7 +1434,7 @@ class StructureModelConfig():
     def preprocess_fn(self, dataset_files):
         full_dataset = pd.read_csv(dataset_files["main_dataset"], index_col = "Index")
         full_dataset = full_dataset[full_dataset["seq"].str.len() < 1022]
-    
+
         full_dataset["other"] = [[]]*len(full_dataset)
         other_feat_files = dataset_files["other_feats"]
         if len(other_feat_files) > 0:
@@ -1490,7 +1502,6 @@ class StructureModelConfig():
         for key in not_needed:
             del training_init_dict[key]
         return training_init_dict
-
     
     def __getitem__(self, idx):
         dirs_from_idx = idx.split("/")
@@ -1556,13 +1567,10 @@ class GeneralizedStructureModel(nn.Module):
         full_features = n_features + additional_features
         module_classes = self.module_classes
         bilinear = self.bilinear
-        module_count = len(module_init_dict)+1 if bilinear else 0
+        module_count = len(module_init_dict) if bilinear else 0
         
-        #Common parameters and obligatory layers are going to be written here
         execution_order = nn.ModuleDict()  
         execution_order["SharedVariableModule"] = SharedVariableModule(full_features, module_classes, model_type, module_count, init_dict)
-        execution_order["InputOutputEmbeddingModule"] = InputOutputEmbeddingModule(n_features, module_classes, model_type, additional_features, init_dict)
-
         for module_name, (module_fn, module_params) in module_init_dict.items():
             execution_order[module_name] = module_fn(n_features=full_features, module_classes=module_classes, 
                                                      model_type=model_type, **module_params)
@@ -1663,10 +1671,8 @@ class GeneralizedStructureModel(nn.Module):
         determine_if_run = lambda x: self.active_modules[x] > 1e-08
         all_modules = list(self.execution_order.keys())
         all_active_modules = list(filter(determine_if_run, all_modules))
-        print("Active Modules:", all_active_modules)
-        print("-"*70)
         
-        fn_outputs = []
+        fn_outputs, accs_text = [], [f"Active Modules: {all_active_modules}", "-"*70]
         for i, dataloader in enumerate(dataloaders):
             if hasattr(dataloader, "name"):
                 dloader_name = dataloader.name
@@ -1675,10 +1681,11 @@ class GeneralizedStructureModel(nn.Module):
             pred_dloader, true_dloader = self.inference_model(dataloader)
             base_accuracy = np.mean(np.array(pred_dloader) == np.array(true_dloader))*100
             format_accuracy = round(float(base_accuracy), 3)
-            print(model_name, dloader_name, "Accuracy:", format_accuracy, "%")
-            fn_outputs.append(pred_dloader), fn_outputs.append(true_dloader)
-        print("-"*70)
-        
+            acc_string = f"{model_name} {dloader_name} Accuracy: {format_accuracy} %"
+            fn_outputs.append(pred_dloader), fn_outputs.append(true_dloader), accs_text.append(acc_string)
+
+        accs_text.append("-"*70)
+        print("\n".join(accs_text))
         return fn_outputs
     
     def linearize_model(self, dataloader):
@@ -1932,7 +1939,7 @@ def train_model(model, datasets, lrs, wds, reset_state, use_module_per_epoch, se
         print_interm = epochs+1
     ckpt_frequency = ckpt_config.get("ckpt_frequency", epochs+1)
     ckpt_filename = ckpt_config.get("ckpt_filename", unwrapped_model(model).model_name)
-    ckpt_filename = f"{ckpt_filename}_epoch.pt"
+    ckpt_filename = f"{CKPT_DIR}/{ckpt_filename}_epoch.pt"
     debugging = type(debug_dict) == dict
     
     if score_beginning:
