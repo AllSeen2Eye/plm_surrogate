@@ -1334,7 +1334,7 @@ class StructureModelConfig():
     
     def to_json(self, file_name, **dump_kwargs):
         with open(file_name, "w") as json_file:
-            json_file.dump(self.config, filename, **dump_kwargs)
+            json.dump(self.config, json_file, **dump_kwargs)
             
     def get_init_dict(self, nat_embed, rotate_embeds, true_period, solvent_access_w):
         n_features = self["model/n_features"]
@@ -1349,7 +1349,7 @@ class StructureModelConfig():
         else:
             init_dict = {}
         init_dict = init_dict | embeds_dict
-        init_dict = {key:value.astype(np.float64) for key, value in init_dict.items()}
+        init_dict = {key:np.array(value).astype(np.float64) for key, value in init_dict.items()}
         
         return init_dict
         
@@ -1463,7 +1463,7 @@ class StructureModelConfig():
             ds_train["label"] = pd.Series(dataset_esm).loc[ds_train.index]
 
         full_class_str = dataset_init_dict.pop("full_class_str")
-        y_tokens = dataset_init_dict.pop("y_tokens")
+        y_tokens = np.array(dataset_init_dict.pop("y_tokens"))
         bilinear = dataset_init_dict.pop("bilinear")
         all_datasets = [ds_train, ds_score, ds_valid, ds_test]
         for j, dataset in enumerate(all_datasets):
