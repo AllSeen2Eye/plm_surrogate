@@ -1419,11 +1419,11 @@ class StructureModelConfig():
         return per_epoch_args
 
     def preprocess_fn(self, dataset_files):
-        full_dataset = pd.read_csv(dataset_file["main_dataset"])
+        full_dataset = pd.read_csv(dataset_files["main_dataset"])
         full_dataset = full_dataset[full_dataset["seq"].str.len() < 1022]
     
         full_dataset["other"] = [[]]*len(full_dataset)
-        other_feat_files = dataset_file["other_feats"]
+        other_feat_files = dataset_files["other_feats"]
         if len(other_feat_files) > 0:
             other_feat_dict = {}
             load_npzs = [np.load(file_name, allow_pickle = True) for file_name in other_feat_files] 
