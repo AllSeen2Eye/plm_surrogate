@@ -2035,7 +2035,7 @@ def train_model(model, datasets, lrs, wds, reset_state, use_module_per_epoch, se
             if len(profiler_options) > 0 and (epoch+1) == print_interm:
                 call_profiler(unwrapped_model(model), test_dataloader, profiler_options)
         
-        if ((epoch+1) % checkpoint_freq) == 0:
+        if ((epoch+1) % ckpt_frequency) == 0:
             epoch_ckpt_name = ckpt_filename.replace("epoch", str(epoch+1))
             unwrapped_model(model).save_model(epoch_ckpt_name)
             print(f"Saved checkpoint for model at ./{epoch_ckpt_name}")
