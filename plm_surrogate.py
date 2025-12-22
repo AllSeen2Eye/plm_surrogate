@@ -1324,12 +1324,12 @@ class StructureModelConfig():
         with open(file_name, "w") as json_file:
             json_file.dump(self.config, filename, **dump_kwargs)
             
-    def get_init_dict(self, true_period, solvent_access_w):
+    def get_init_dict(self, nat_embed, rotate_embeds, true_period, solvent_access_w):
         n_features = self["model/n_features"]
         additional_features = self["model/additional_features"]
         bias_embeds = np.array([0]*n_features)
         
-        embeds_dict = {"nat_embed":nat_embed, "rotate_embeds":wp, "bias_embeds":bias_embeds, 
+        embeds_dict = {"nat_embed":nat_embed, "rotate_embeds":rotate_embeds, "bias_embeds":bias_embeds, 
                        "true_period":true_period, "solvent_access_w":solvent_access_w, }  
         init_dict_file = self["model/init_dict_file"]
         if len(init_dict_file) > 0:
@@ -1355,7 +1355,8 @@ class StructureModelConfig():
         
     def config_model_init(self):
         model_init_dict = copy.deepcopy(self.config["model"])
-        model_init_dict["init_dict"] = self.get_init_dict(model_init_dict.pop("true_period"), model_init_dict.pop("solvent_access_w"))
+        embedding_configs = model_init_dict.pop("embedding_configs")
+        model_init_dict["init_dict"] = self.get_init_dict(**embedding_configs)
         model_init_dict["module_init_dict"] = self.get_module_init_dict()
         
         not_needed = ["init_dict_file", "module_order", "module_hyperparams"]
