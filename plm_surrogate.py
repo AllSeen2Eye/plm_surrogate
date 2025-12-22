@@ -153,9 +153,9 @@ class ClassTokenizer():
 
     def tokenize(self, y_seq, seq_len, max_len):
         if self.bilinear:
-            return bilinear_tokenizer(self, y_seq, seq_len, max_len)
+            return self.bilinear_tokenizer(self, y_seq, seq_len, max_len)
         else:
-            return sequence_tokenizer(self, y_seq, seq_len, max_len)
+            return self.sequence_tokenizer(self, y_seq, seq_len, max_len)
             
     def sequence_tokenize(self, y_seq, seq_len, max_len):
         y_true = torch.zeros((max_len, self.n_dims)).squeeze(dim=-1)
