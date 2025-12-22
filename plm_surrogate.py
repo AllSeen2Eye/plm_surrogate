@@ -53,7 +53,7 @@ scaler = torch.amp.GradScaler(device)
 aa_alphabet = "ACDEFGHIKLMNPQRSTVWYX"
 x_tokens = np.reshape(np.array(list(aa_alphabet)), (1, -1))
 
-def get_constants(aaprop_file_name, wp_file_name, n_features = 15)
+def get_constants(aaprop_file_name, wp_file_name, n_features = 15):
     aa_data = pd.read_csv(aaprop_file_name, index_col="Name")
 
     for column_name in aa_data.columns:
@@ -1430,13 +1430,13 @@ class StructureModelConfig():
                 full_feats = np.concatenate([npz[key] for npz in load_npzs], axis = -1)
                 other_feat_dict[key] = full_feats
             full_dataset["other"] = pd.Series(other_feat_dict).loc[full_dataset.index]
-    
-        ds_train = full_dataset[full_dataset["subset_type"] == "train"][["seq", "label", "other"]]
-        ds_score = ds_train.copy()
-        ds_valid = full_dataset[full_dataset["subset_type"] == "valid"][["seq", "label", "other"]]
-        ds_test = full_dataset[full_dataset["subset_type"] == "test"][["seq", "label", "other"]]
-    
-        return (ds_train, ds_score, ds_valid, ds_test)
+
+        all_datasets = []
+        for dataset_label in ["train", "score", "valid", "test"]:
+            ds_slice = full_dataset[full_dataset["subset_type"] == dataset_label][["seq", "label", "other"]]
+            all_datasets.append(ds_slice)
+
+        return all_datasets
         
     def config_dataset_init(self):
         dataset_init_dict = copy.deepcopy(self["dataset"])
