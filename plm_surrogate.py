@@ -1574,7 +1574,7 @@ class GeneralizedStructureModel(nn.Module):
         execution_order["SharedVariableModule"] = SharedVariableModule(full_features, module_classes, model_type, module_count, init_dict)
         for module_name, (module_fn, module_params) in module_init_dict.items():
             execution_order[module_name] = module_fn(n_features=full_features, module_classes=module_classes, 
-                                                     model_type=model_type, **module_params)
+                                                     model_type=model_type, init_dict=init_dict, **module_params)
         self.execution_order = execution_order
         if self.active_modules is None or len(self.active_modules) < len(execution_order):
             print("Warning! No active_modules provided. Check the model arguments or ignore, if this was planned")
@@ -1933,7 +1933,7 @@ def train_model(model, datasets, lrs, wds, reset_state, use_module_per_epoch, se
     elif not given_distr and base_n_classes == 1:
         loss_fn = nn.BCEWithLogitsLoss(reduction = "none", weight = class_weights)
     else: 
-        loss_fn = nn.KLDivLoss(reduction = 'none')
+        loss_fn = nn.KLDivLoss(reduction = "none")
     optimizer_fn = torch.optim.AdamW(model.parameters(), lr = 0, weight_decay = 0)
 
     epochs = min(len(lrs), len(wds), len(use_module_per_epoch), len(reset_state))
