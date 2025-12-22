@@ -1381,6 +1381,7 @@ class StructureModelConfig():
         fake_model_init_dict = self.config_model_init()
         fake_model_init_dict["set_grad_kwargs"]["verbose"] = False 
         fake_model = GeneralizedStructureModel(**fake_model_init_dict)
+        all_module_names = ["SharedVariableModule", "InputOutputEmbeddingModule"] + self["model/module_order"]
         
         use_module_per_epoch, set_grad_array, reset_state, lrs, wds = [], [], [], [], []
         for element_num in range(len(active_list)):
