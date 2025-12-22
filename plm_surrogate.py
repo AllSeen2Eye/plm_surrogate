@@ -1433,6 +1433,7 @@ class StructureModelConfig():
 
     def preprocess_fn(self, dataset_files):
         full_dataset = pd.read_csv(dataset_files["main_dataset"], index_col = "Index")
+        full_dataset.index = list(map(str, full_dataset.index))
         full_dataset = full_dataset[full_dataset["seq"].str.len() < 1022]
 
         full_dataset["other"] = [[]]*len(full_dataset)
