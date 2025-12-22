@@ -1,19 +1,15 @@
 ### IMPORTS
 import os
-import gc
 import copy
 import json
-import warnings
 import inspect
 from collections import OrderedDict
 
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 
 from tqdm.auto import tqdm
 from sklearn.decomposition import PCA
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, ConfusionMatrixDisplay
 
 import torch
@@ -23,7 +19,6 @@ from torch.amp import autocast
 from torch.profiler import profile, ProfilerActivity, record_function
 
 import torch.distributed as dist
-import torch.multiprocessing as mp
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader, SequentialSampler, RandomSampler, DistributedSampler
 
@@ -32,7 +27,6 @@ try:
     import torch_xla.core.xla_model as xm
     import torch_xla.distributed.parallel_loader as pl
     import torch_xla.distributed.xla_multiprocessing as xmp
-    import torch_xla.debug.metrics as met
     xla_device_available = True
 except ModuleNotFoundError:
     xla_device_available = False
