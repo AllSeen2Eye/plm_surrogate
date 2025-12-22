@@ -1431,7 +1431,7 @@ class StructureModelConfig():
                           "set_grad_array":set_grad_array}
         return per_epoch_args
 
-    def preprocess_fn(self, dataset_files):
+    def preprocess_fn(self, dataset_files, dataset_labels = ["train", "score", "valid", "test"]):
         full_dataset = pd.read_csv(dataset_files["main_dataset"], index_col = "Index")
         full_dataset.index = list(map(str, full_dataset.index))
         full_dataset = full_dataset[full_dataset["seq"].str.len() < 1022]
@@ -1447,7 +1447,7 @@ class StructureModelConfig():
             full_dataset["other"] = pd.Series(other_feat_dict).loc[full_dataset.index]
 
         all_datasets = []
-        for dataset_label in ["train", "score", "valid", "test"]:
+        for dataset_label in dataset_labels:
             ds_slice = full_dataset[full_dataset["subset_type"] == dataset_label][["seq", "label", "other"]]
             all_datasets.append(ds_slice)
 
@@ -1973,12 +1973,14 @@ def train_model(model, datasets, lrs, wds, reset_state, use_module_per_epoch, se
                 if debugging:
                     debug_dict |= y_pred
                     y_pred = y_pred["outputs"]
-                if not given_distr:
+                if not given_distr and base_n_classes > 1:
                     y_true = y_true.to(int)
+                elif not given_distr and base_n_classes == 1:
+                    y_true = y_true.to(cast_dtype)
                 else:
                     y_pred = F.log_softmax(y_pred, dim = -1)
 
-                metrics_mask = masks.clone().flatten(0, 1) if not bilinear else (masks*masks.permute(0, 2, 1)).flatten(0, 1)
+                metrics_mask = masks.clone().flatten(0, 1) if not bilinear else (masks*masks.permute(0, 2, 1)).flatten()
                 given_distr_shape = (-1, ) if not given_distr else (-1, base_n_classes)
                 loss_val_unmasked = loss_fn(y_pred.reshape((-1, base_n_classes)).squeeze(-1), 
                                             y_true.reshape(given_distr_shape))
@@ -2011,7 +2013,7 @@ def train_model(model, datasets, lrs, wds, reset_state, use_module_per_epoch, se
             if given_distr:
                 y_true = torch.argmax(y_true, axis = -1)
 
-            y_pred_to_idx = torch.argmax(y_pred, dim = -1) if base_n_classes > 1 else (y_pred > 0.0).to(int)
+            y_pred_to_idx = torch.argmax(y_pred, dim = -1) if base_n_classes > 1 else (y_pred > 0.0).to(int)[..., 0]
             real_masks = masks[..., 0] if not bilinear else masks*masks.permute(0, 2, 1)
             acc_val = torch.sum((y_true == y_pred_to_idx)*real_masks)
             cumacc += acc_val
