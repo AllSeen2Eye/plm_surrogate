@@ -435,12 +435,12 @@ class SharedVariableModule(nn.Module):
             names = names + [f"module_projection_{i}" for i in range(module_count)]
             shapes = shapes + [(1, input_proj_weights, output_proj_weights)]*module_count
         self.parameter_list = create_parameter_list(names, shapes, model_type, init_dict)
-    
+
     def forward(self, input_dict):
         lp = unpack_parameter_list(self.parameter_list) #local_params
         for key, value in lp.__dict__.items():
             input_dict[key] = value
-        return 0.0
+        return self.output_proj_weights.to(input_dict["device"])[:1, :].unsqueeze(0)
         
 class InputOutputEmbeddingModule(nn.Module):
     def __init__(self, n_features, module_classes, 
