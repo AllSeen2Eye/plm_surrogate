@@ -154,23 +154,26 @@ class ClassTokenizer():
         self.n_dims = np.prod(y_tokens.shape) if given_distr else 1
         self.name = name
         
-    def sequence_tokenizer(self, y_seq, seq_len, max_len):
+    def sequence_tokenizer(self, y_input, seq_len, max_len):
         y_true = torch.zeros((max_len, self.n_dims)).squeeze(dim=-1)
         if not self.given_distr: 
-            if type(y_seq) != str: 
-                argmaxed_y = np.argmax(y_seq, -1).tolist()
-                y_seq_list = list(map(lambda y:self.full_class_str[y], argmaxed_y))
-                y_seq = "".join(y_seq_list) 
-            y_onehot = np.reshape(np.array(list(y_seq)), (-1, 1)) == self.y_tokens
+            if type(y_input) != str: 
+                argmaxed_y = np.argmax(y_input, -1).tolist()
+                y_input_list = list(map(lambda y:self.full_class_str[y], argmaxed_y))
+                y_input = "".join(y_input_list) 
+            y_onehot = np.reshape(np.array(list(y_input)), (-1, 1)) == self.y_tokens
             decide_label = np.argmax(y_onehot, -1) 
-            y_seq_true = torch.from_numpy(decide_label).to(int)
+            y_input_true = torch.from_numpy(decide_label).to(int)
         else: 
-            y_seq_true = torch.FloatTensor(y_seq).softmax(-1)
-        y_true[1:seq_len+1] = y_seq_true
+            y_input_true = torch.FloatTensor(y_input).softmax(-1)
+        y_true[1:seq_len+1] = y_input_true
         return y_true
 
-    def bilinear_tokenizer(self, y_seq, seq_len, max_len):
+    def bilinear_tokenizer(self, y_input, seq_len, max_len):
         y_true = torch.zeros((max_len, max_len, self.n_dims)).squeeze(dim=-1)
+        y_input = np.fromstring(y_input)
+        real_len = int(y_input.shape[0]**0.5)
+        y_input = y_input.reshape(real_len, real_len, self.n_dims)
         if not self.given_distr: 
             y_input_true = torch.from_numpy(y_input).to(int)
         else: 
@@ -178,11 +181,11 @@ class ClassTokenizer():
         y_true[1:seq_len+1, 1:seq_len+1] = y_input_true
         return y_true
     
-    def tokenize(self, y_seq, seq_len, max_len):
+    def tokenize(self, y_input, seq_len, max_len):
         if self.bilinear:
-            return self.bilinear_tokenizer(y_seq, seq_len, max_len)
+            return self.bilinear_tokenizer(y_input, seq_len, max_len)
         else:
-            return self.sequence_tokenizer(y_seq, seq_len, max_len)
+            return self.sequence_tokenizer(y_input, seq_len, max_len)
             
     def collate_fn(self, tensor_tuple):
         x_feats, y_true, masks = zip(*tensor_tuple)
@@ -309,23 +312,7 @@ kl_div_fn = lambda mu, sigma, mu_p, sigma_p: torch.log(sigma_p)-torch.log(sigma)
 log_prior_fn = lambda mu, sigma, mu_p, sigma_p: 0.5*((mu-mu_p)**2)*(1/sigma_p**2)
 
 
-### ADDITIONAL FUNCTIONS (MODEL)
-def get_module_classes(module_classes):
-    input_module_classes, output_module_classes, base_n_classes = module_classes
-    input_n_classes = len(input_module_classes)
-    input_module_ids = [input_module_classes, list(range(input_n_classes))]
-    input_proj_weights = torch.zeros((base_n_classes, input_n_classes), dtype = torch.float32)
-    input_proj_weights[input_module_ids] = 1
-    input_proj_weights = nn.Parameter(input_proj_weights, requires_grad = False)
-    
-    output_n_classes = len(output_module_classes)
-    output_module_ids = [list(range(output_n_classes)), output_module_classes]
-    output_proj_weights = torch.zeros((output_n_classes, base_n_classes), dtype = torch.float32)
-    output_proj_weights[output_module_ids] = 1
-    output_proj_weights = nn.Parameter(output_proj_weights, requires_grad = False)
-    
-    return input_n_classes, output_n_classes, input_proj_weights, output_proj_weights
-    
+### ADDITIONAL FUNCTIONS (MODEL)    
 def adjust_optim(optimizer_fn, lr, wd):
     optimizer_fn.param_groups[0]['weight_decay'] = wd
     optimizer_fn.param_groups[0]['lr'] = lr
@@ -422,36 +409,31 @@ def call_profiler(model, dataset_profiler, profiler_options):
 
 ### MODEL MODULE OBJECTS
 class SharedVariableModule(nn.Module):
-    def __init__(self, n_features, module_classes, 
-                 model_type, module_count, init_dict = {}):
+    def __init__(self, n_features, hidden_state_dim, 
+                 model_type, module_count = 0, 
+                 n_classes = 1, init_dict = {}):
         super().__init__()
-        input_n_classes, output_n_classes, input_proj_weights, output_proj_weights = get_module_classes(module_classes)
-        self.input_proj_weights = input_proj_weights
-        self.output_proj_weights = output_proj_weights
         
         names = ["features2class", "conv_ampl_1"]
-        shapes = [(1, n_features, output_n_classes), (1, n_features, output_n_classes)]
+        shapes = [(1, n_features, hidden_state_dim), (1, n_features, hidden_state_dim)]
         if module_count > 0:
             names = names + [f"module_projection_{i}" for i in range(module_count)]
-            shapes = shapes + [(1, input_proj_weights, output_proj_weights)]*module_count
+            shapes = shapes + [(1, hidden_state_dim, n_classes)]*module_count
         self.parameter_list = create_parameter_list(names, shapes, model_type, init_dict)
+        self.dummy_output = torch.zeros((1, 1, 1))
 
     def forward(self, input_dict):
         lp = unpack_parameter_list(self.parameter_list) #local_params
         for key, value in lp.__dict__.items():
             input_dict[key] = value
-        return self.output_proj_weights.to(input_dict["device"])[:1, :].unsqueeze(0)
-        
+        return self.dummy_output.to(input_dict["device"])
+            
 class InputOutputEmbeddingModule(nn.Module):
-    def __init__(self, n_features, module_classes, 
+    def __init__(self, n_features, hidden_state_dim, 
                  model_type, cut_features = 0, 
                  additional_features = 0, init_dict = {}):
         super().__init__()
         n_features -= additional_features
-        base_n_classes = module_classes[-1]
-        input_n_classes, output_n_classes, input_proj_weights, output_proj_weights = get_module_classes(module_classes)
-        self.input_proj_weights = input_proj_weights
-        self.output_proj_weights = output_proj_weights
 
         self.cut_features = cut_features
         self.additional_features = additional_features
@@ -460,8 +442,8 @@ class InputOutputEmbeddingModule(nn.Module):
                  "bias_embeds", "nat_embed", "pad_emb", "class_unk_emb", 
                  "class_bos_emb", "class_eos_emb", "class_pad_emb", "class_freq_emb"]
         shapes = [(1, 1, n_features), (1, 1, n_features), (1, 1, n_features), (1, n_features, n_features),
-                  (1, 1, n_features), (1, len(aa_alphabet)-1, n_features), (1, 1, n_features), (1, 1, base_n_classes),
-                  (1, 1, base_n_classes), (1, 1, base_n_classes), (1, 1, base_n_classes), (1, 1, base_n_classes)]
+                  (1, 1, n_features), (1, len(aa_alphabet)-1, n_features), (1, 1, n_features), (1, 1, hidden_state_dim),
+                  (1, 1, hidden_state_dim), (1, 1, hidden_state_dim), (1, 1, hidden_state_dim), (1, 1, hidden_state_dim)]
         if additional_features > 0:
             names.append("add_embed"), shapes.append((2, 1, additional_features))
             names.append("lda_class_map"), shapes.append((1, additional_features + cut_features, base_n_classes))
@@ -488,19 +470,16 @@ class InputOutputEmbeddingModule(nn.Module):
         return class_logits
 
 class PhysioChemical2Class(nn.Module):
-    def __init__(self, n_features, module_classes, 
+    def __init__(self, n_features, hidden_state_dim, 
                  model_type, max_std_base, init_dict = {}):
         super().__init__()
-        input_n_classes, output_n_classes, input_proj_weights, output_proj_weights = get_module_classes(module_classes)
-        self.input_proj_weights = input_proj_weights
-        self.output_proj_weights = output_proj_weights
         
         self.init_dict = {"max_std_base":max_std_base}
         names = ["mean_dist_attn", "std_dist_attn", "period_cos", 
                  "phase_cos", "w_bias"]
-        shapes = [(1, n_features, output_n_classes), (1, n_features, output_n_classes),
-                  (1, n_features, output_n_classes), (1, n_features, output_n_classes),
-                  (1, n_features, output_n_classes)]
+        shapes = [(1, n_features, hidden_state_dim), (1, n_features, hidden_state_dim),
+                  (1, n_features, hidden_state_dim), (1, n_features, hidden_state_dim),
+                  (1, n_features, hidden_state_dim)]
         self.parameter_list = create_parameter_list(names, shapes, model_type, init_dict)
         
     def forward(self, input_dict):
@@ -524,17 +503,12 @@ class PhysioChemical2Class(nn.Module):
         
         dist_filt = w_bias_dist_filt + dist_filt
         class_logits = dist_filt*masks
-        output_proj_weights = self.output_proj_weights.to(input_dict["device"])
-        class_logits = class_logits@output_proj_weights
         return class_logits
 
 class InterClassBiasCorrection(nn.Module):
-    def __init__(self, n_features, module_classes, 
+    def __init__(self, n_features, hidden_state_dim, 
                  model_type, init_dict = {}):
         super().__init__()
-        input_n_classes, output_n_classes, input_proj_weights, output_proj_weights = get_module_classes(module_classes)
-        self.input_proj_weights = input_proj_weights
-        self.output_proj_weights = output_proj_weights
         
         names = ["seq_w_bias"]
         shapes = [(1, n_features, 1)]
@@ -555,26 +529,23 @@ class InterClassBiasCorrection(nn.Module):
         
         masked_part_one = torch.transpose(axis_one_mask[..., 0, 0], 1, 2)@seq_w_base[:, :, 0, 0]
         class_logits = (axis_two_mask[..., 0, 0]@masked_part_one)*masks
-        output_proj_weights = self.output_proj_weights.to(input_dict["device"])
-        class_logits = class_logits@output_proj_weights
         return class_logits
         
 class SolubilityModule(nn.Module):
-    def __init__(self, n_features, module_classes, 
+    def __init__(self, n_features, hidden_state_dim, 
                  model_type, starting_period, max_std_pos_conv, init_dict = {}):
         super().__init__()
-        input_n_classes, output_n_classes, input_proj_weights, output_proj_weights = get_module_classes(module_classes)
-        self.input_proj_weights = input_proj_weights
-        self.output_proj_weights = output_proj_weights
         
         self.init_dict = {"starting_period":starting_period, 
                           "max_std_pos_conv":max_std_pos_conv}
         for key, value in init_dict.items():
             self.init_dict[key] = value
-        names = ["true_period", "solvent_access_w", "conv_ampl_0", "period_conv",
-                 "phase_conv", "mean_pos_conv", "std_pos_conv", "converge_w_bias"]
-        shapes = [(1, 1, output_n_classes), (1, n_features, 1), (1, n_features, 1), (1, 1, output_n_classes),
-                  (1, 1, output_n_classes), (1, 1, output_n_classes), (1, 1, output_n_classes), (1, 1, output_n_classes)]
+        names = ["true_period", "solvent_access_w", "conv_ampl_0", 
+                 "period_conv", "phase_conv", "mean_pos_conv", 
+                 "std_pos_conv", "converge_w_bias"]
+        shapes = [(1, 1, hidden_state_dim), (1, n_features, 1), (1, n_features, 1), 
+                  (1, 1, hidden_state_dim),  (1, 1, hidden_state_dim), (1, 1, hidden_state_dim), 
+                  (1, 1, hidden_state_dim), (1, 1, hidden_state_dim)]
         self.parameter_list = create_parameter_list(names, shapes, model_type, init_dict)
         
     def forward(self, input_dict):
@@ -594,8 +565,6 @@ class SolubilityModule(nn.Module):
                                 stride = 1, padding = "same").permute(0, 2, 1)
         local_part_1 = orig_embed_full@conv_ampl_1
         class_logits = (local_part_0+lp.converge_w_bias)*local_part_1*masks
-        output_proj_weights = self.output_proj_weights.to(input_dict["device"])
-        class_logits = class_logits@output_proj_weights
         return class_logits
 
     def precompute_period_conv(self, input_dict):
@@ -611,18 +580,15 @@ class SolubilityModule(nn.Module):
         return period_conv
         
 class AggregateNeighbourComparison(nn.Module):
-    def __init__(self, n_features, module_classes, 
+    def __init__(self, n_features, hidden_state_dim, 
                  model_type, max_std2conv, init_dict = {}):
         super().__init__()
-        input_n_classes, output_n_classes, input_proj_weights, output_proj_weights = get_module_classes(module_classes)
-        self.input_proj_weights = input_proj_weights
-        self.output_proj_weights = output_proj_weights
         
         self.init_dict = {"max_std2conv":max_std2conv}
         for key, value in init_dict.items():
             self.init_dict[key] = value
         names = ["conv_ampl_2", "std2conv", "converge_w_bias_2"]
-        shapes = [(1, n_features, output_n_classes), (1, 1, output_n_classes), (1, 1, output_n_classes)]
+        shapes = [(1, n_features, hidden_state_dim), (1, 1, hidden_state_dim), (1, 1, hidden_state_dim)]
         self.parameter_list = create_parameter_list(names, shapes, model_type, init_dict)
         
     def forward(self, input_dict):
@@ -643,20 +609,15 @@ class AggregateNeighbourComparison(nn.Module):
                                 weight = conv_pairwise_1.permute(2, 1, 0), 
                                 stride = 1, padding = "same").permute(0, 2, 1)
         class_logits = (local_part_2+lp.converge_w_bias_2)*local_part_3*masks
-        output_proj_weights = self.output_proj_weights.to(input_dict["device"])
-        class_logits = class_logits@output_proj_weights
         return class_logits 
 
 class SingleAminoAcidInteraction(nn.Module):
-    def __init__(self, n_features, module_classes, 
+    def __init__(self, n_features, hidden_state_dim, 
                  model_type, init_dict = {}):
         super().__init__()
-        input_n_classes, output_n_classes, input_proj_weights, output_proj_weights = get_module_classes(module_classes)
-        self.input_proj_weights = input_proj_weights
-        self.output_proj_weights = output_proj_weights
         
         names = ["pos_self_sim_w", "pos_self_sim_b"]
-        shapes = [(2, 1, n_features, output_n_classes), (1, 1, output_n_classes)]      
+        shapes = [(2, 1, n_features, hidden_state_dim), (1, 1, hidden_state_dim)]      
         self.parameter_list = create_parameter_list(names, shapes, model_type, init_dict)
     
     def forward(self, input_dict):
@@ -667,25 +628,20 @@ class SingleAminoAcidInteraction(nn.Module):
         diag_dist_filt_1 = orig_embed_full@lp.pos_self_sim_w[1]
         
         class_logits = diag_dist_filt_0*diag_dist_filt_1*masks 
-        output_proj_weights = self.output_proj_weights.to(input_dict["device"])
-        class_logits = class_logits@output_proj_weights
         return class_logits
 
 class BetweenClassCoherence(nn.Module):
-    def __init__(self, n_features, module_classes, 
+    def __init__(self, n_features, hidden_state_dim, 
                  model_type, init_std_class_attn, 
                  max_std_class_attn, init_dict = {}):
         super().__init__()
-        input_n_classes, output_n_classes, input_proj_weights, output_proj_weights = get_module_classes(module_classes)
-        self.input_proj_weights = input_proj_weights
-        self.output_proj_weights = output_proj_weights
         
         self.init_dict = {"init_std_class_attn":init_std_class_attn,
                           "max_std_class_attn":max_std_class_attn}
         for key, value in init_dict.items():
             self.init_dict[key] = value
         names = ["conv_class_inter"]
-        shapes = [(4, 1, input_n_classes, output_n_classes)]
+        shapes = [(4, 1, hidden_state_dim, hidden_state_dim)]
         self.parameter_list = create_parameter_list(names, shapes, model_type, init_dict)
         
     def forward(self, input_dict):
@@ -709,20 +665,15 @@ class BetweenClassCoherence(nn.Module):
                                         stride = 1, padding = "same").permute(0, 2, 1)
         class_conv_dist_filt = class_conv_dist_filt + class_logits_vec@zero_corr_class
         class_logits = class_conv_dist_filt*masks
-        output_proj_weights = self.output_proj_weights.to(input_dict["device"])
-        class_logits = class_logits@output_proj_weights
         return class_logits
         
 class WiderBetweenClassCoherence(nn.Module):
-    def __init__(self, n_features, module_classes, 
+    def __init__(self, n_features, hidden_state_dim, 
                  model_type, init_std_class_attn_0, 
                  max_std_class_attn_0, init_std_class_attn_1, 
                  max_std_class_attn_1, init_std_class_attn_2, 
                  max_std_class_attn_2, init_dict = {}):
         super().__init__()
-        input_n_classes, output_n_classes, input_proj_weights, output_proj_weights = get_module_classes(module_classes)
-        self.input_proj_weights = input_proj_weights
-        self.output_proj_weights = output_proj_weights
         
         self.init_dict = {"init_std_class_attn_0" : init_std_class_attn_0, 
                           "max_std_class_attn_0" : max_std_class_attn_0, 
@@ -733,7 +684,7 @@ class WiderBetweenClassCoherence(nn.Module):
         for key, value in init_dict.items():
             self.init_dict[key] = value
         names = ["class_pairwise", "class_ampl_0"]
-        shapes = [(3, 4, 1, input_n_classes, output_n_classes), (1, input_n_classes, output_n_classes)]
+        shapes = [(3, 4, 1, hidden_state_dim, hidden_state_dim), (1, hidden_state_dim, hidden_state_dim)]
         self.parameter_list = create_parameter_list(names, shapes, model_type, init_dict)
     
     def forward(self, input_dict):
@@ -744,8 +695,6 @@ class WiderBetweenClassCoherence(nn.Module):
         class_local_dist_filt_1 = self.aggregate_neighbour_comparison(input_dict, lp)
         
         class_logits = (class_local_dist_filt_0 + class_local_dist_filt_1)*masks
-        output_proj_weights = self.output_proj_weights.to(input_dict["device"])
-        class_logits = class_logits@output_proj_weights
         return class_logits
         
     def only_opposing_aa_neighbours(self, input_dict, lp):
@@ -803,24 +752,18 @@ class WiderBetweenClassCoherence(nn.Module):
         return local_part_2*local_part_3
         
 class SquareAttnCorrection(nn.Module):
-    def __init__(self, n_features, module_classes, 
+    def __init__(self, n_features, hidden_state_dim, 
                  model_type, init_dict = {}):
         super().__init__()
-        input_n_classes, output_n_classes, input_proj_weights, output_proj_weights = get_module_classes(module_classes)
-        self.input_proj_weights = input_proj_weights
-        self.output_proj_weights = output_proj_weights
         
         names = ["class_x_class_lora"]
-        shapes = [(1, input_n_classes, 4)]
+        shapes = [(1, hidden_state_dim, 4)]
         self.parameter_list = create_parameter_list(names, shapes, model_type, init_dict)
         
     def forward(self, input_dict):
         lp = unpack_parameter_list(self.parameter_list) #local_params
         orig_embed_full, class_logits = input_dict["x_embeds"], input_dict["outputs"]
         masks, features2class = input_dict["masks"], input_dict["features2class"]
-
-        input_proj_weights = self.input_proj_weights.to(input_dict["device"])
-        class_logits = class_logits@input_proj_weights
         
         square_w = lp.class_x_class_lora
         implicit_dim = square_w.shape[-1]//2
@@ -836,27 +779,20 @@ class SquareAttnCorrection(nn.Module):
         class_filter = torch.transpose(class_w_0, 1, 2)@orig_embed_full
         
         class_logits = (class_w_1@class_filter@features2class)*masks
-        output_proj_weights = self.output_proj_weights.to(input_dict["device"])
-        class_logits = class_logits@output_proj_weights
         return class_logits
 
 class SeqWideImportantRegions(nn.Module):
-    def __init__(self, n_features, module_classes, model_type, init_dict = {}):
+    def __init__(self, n_features, hidden_state_dim, model_type, init_dict = {}):
         super().__init__()
-        input_n_classes, output_n_classes, input_proj_weights, output_proj_weights = get_module_classes(module_classes)
-        self.input_proj_weights = input_proj_weights
-        self.output_proj_weights = output_proj_weights
         
         names = ["pos_independent_w", "pos_independent_b"]
-        shapes = [(1, input_n_classes, output_n_classes), (1, 1, output_n_classes)]
+        shapes = [(1, hidden_state_dim, hidden_state_dim), (1, 1, hidden_state_dim)]
         self.parameter_list = create_parameter_list(names, shapes, model_type, init_dict)
         
     def forward(self, input_dict):
         lp = unpack_parameter_list(self.parameter_list) #local_params
         class_logits, masks = input_dict["outputs"], input_dict["masks"]
         orig_embed_full, features2class = input_dict["x_embeds"], input_dict["features2class"]
-        input_proj_weights = self.input_proj_weights.to(input_dict["device"])
-        class_logits = class_logits@input_proj_weights
         
         pi_logit_input = class_logits - torch.max(class_logits, dim = -1, keepdim = True).values
         pi_logit_w = F.sigmoid(pi_logit_input@lp.pos_independent_w + lp.pos_independent_b)
@@ -868,26 +804,21 @@ class SeqWideImportantRegions(nn.Module):
         
         pi_dist_filt = torch.transpose(axis_one_mask[..., 0, 0], 1, 2)@pi_dist_filt
         class_logits = (axis_two_mask[..., 0, 0]@pi_dist_filt)*masks
-        output_proj_weights = self.output_proj_weights.to(input_dict["device"])
-        class_logits = class_logits@output_proj_weights
         return class_logits
 
 class AttnDecompClassCoherence(nn.Module): 
-    def __init__(self, n_features, module_classes, 
+    def __init__(self, n_features, hidden_state_dim, 
                  model_type, max_std_sigma, init_dict = {}): 
         super().__init__()         
-        input_n_classes, output_n_classes, input_proj_weights, output_proj_weights = get_module_classes(module_classes)
-        self.input_proj_weights = input_proj_weights
-        self.output_proj_weights = output_proj_weights
         
         self.init_dict = {"max_std_sigma":max_std_sigma}
-        feat_i_classes = n_features + input_n_classes
+        feat_i_classes = n_features + hidden_state_dim
         downsample_feats = feat_i_classes
         names = ["all_x_all_ampl", "inp_decomp_vecs", 
                  "out_decomp_vecs", "all_x_all_bias", 
                  "knn_activations"] 
-        shapes = [(5, downsample_feats, output_n_classes), (5, downsample_feats, 1), 
-                  (5, 1, output_n_classes), (3, 1, output_n_classes), (2, feat_i_classes, downsample_feats)] 
+        shapes = [(5, downsample_feats, hidden_state_dim), (5, downsample_feats, 1), 
+                  (5, 1, hidden_state_dim), (3, 1, hidden_state_dim), (2, feat_i_classes, downsample_feats)] 
         self.parameter_list = create_parameter_list(names, shapes, model_type, init_dict) 
     
     def forward(self, input_dict): 
@@ -901,8 +832,6 @@ class AttnDecompClassCoherence(nn.Module):
         class_logits = input_dict["outputs"]
         orig_embed_full, pos_embed = input_dict["x_embeds"], input_dict["pos_embed"]
         class_logits = F.softmax(class_logits, dim = -1)*masks
-        input_proj_weights = self.input_proj_weights.to(input_dict["device"])
-        class_logits = class_logits@input_proj_weights
         orig_embed_fuller = torch.cat([orig_embed_full, class_logits], dim = -1)
 
         conv_feat_vecs_0 = orig_embed_fuller.clone()@lp.knn_activations[0]
@@ -942,8 +871,6 @@ class AttnDecompClassCoherence(nn.Module):
 
         rec_dist_filt = rec_dist_filt_0 + rec_dist_filt_1 + rec_dist_filt_2
         class_logits = rec_dist_filt*masks 
-        output_proj_weights = self.output_proj_weights.to(input_dict["device"])
-        class_logits = class_logits@output_proj_weights
         return class_logits
 
     @staticmethod
@@ -962,24 +889,21 @@ class AttnDecompClassCoherence(nn.Module):
             return inp_proj * out_proj * 0
 
 class WiderAttnDecompClassCoherence(nn.Module): 
-    def __init__(self, n_features, module_classes, model_type, 
+    def __init__(self, n_features, hidden_state_dim, model_type, 
                  max_std_sigma_0, max_std_sigma_1, 
                  init_dict = {}): 
         super().__init__() 
-        input_n_classes, output_n_classes, input_proj_weights, output_proj_weights = get_module_classes(module_classes)
-        self.input_proj_weights = input_proj_weights
-        self.output_proj_weights = output_proj_weights
         
         self.init_dict = {"max_std_sigma_0":max_std_sigma_0,
                           "max_std_sigma_1":max_std_sigma_1}
-        feat_i_classes = n_features + input_n_classes
+        feat_i_classes = n_features + hidden_state_dim
         downsample_feats = feat_i_classes
         names = ["all_x_all_ampl_1", "inp_decomp_vecs_1", 
                  "out_decomp_vecs_1", "all_x_all_bias_1", 
                  "pos_dep_ampl_weights_1", "knn_activations_1"] 
-        shapes = [(5, downsample_feats, output_n_classes), (5, downsample_feats, 1), 
-                  (5, 1, output_n_classes), (5, 1, output_n_classes), 
-                  (1, feat_i_classes, output_n_classes), (2, feat_i_classes, downsample_feats)] 
+        shapes = [(5, downsample_feats, hidden_state_dim), (5, downsample_feats, 1), 
+                  (5, 1, hidden_state_dim), (5, 1, hidden_state_dim), 
+                  (1, feat_i_classes, hidden_state_dim), (2, feat_i_classes, downsample_feats)] 
         self.parameter_list = create_parameter_list(names, shapes, model_type, init_dict) 
         
     def forward(self, input_dict): 
@@ -993,8 +917,6 @@ class WiderAttnDecompClassCoherence(nn.Module):
         class_logits = input_dict["outputs"]*masks
         orig_embed_full, pos_embed = input_dict["x_embeds"], input_dict["pos_embed"]
         class_logits = F.softmax(class_logits, dim = -1)*masks
-        input_proj_weights = self.input_proj_weights.to(input_dict["device"])
-        class_logits = class_logits@input_proj_weights
         orig_embed_fuller = torch.cat([orig_embed_full, class_logits], dim = -1)
 
         conv_feat_vecs_0 = orig_embed_fuller.clone()@lp.knn_activations_1[0]
@@ -1049,8 +971,6 @@ class WiderAttnDecompClassCoherence(nn.Module):
         rec_dist_filt = rec_dist_filt_0 + rec_dist_filt_1 + rec_dist_filt_2
         per_pos_ampl = orig_embed_fuller@lp.pos_dep_ampl_weights_1 + b_attn_3
         class_logits = V_correction*per_pos_ampl*rec_dist_filt*masks
-        output_proj_weights = self.output_proj_weights.to(input_dict["device"])
-        class_logits = class_logits@output_proj_weights
         return class_logits
 
     @staticmethod
@@ -1069,24 +989,21 @@ class WiderAttnDecompClassCoherence(nn.Module):
             return inp_proj * out_proj * 0
             
 class EvenWiderAttnDecompClassCoherence(nn.Module): 
-    def __init__(self, n_features, module_classes, model_type, 
+    def __init__(self, n_features, hidden_state_dim, model_type, 
                  max_std_sigma_0, max_std_sigma_1, 
                  init_dict = {}): 
         super().__init__() 
-        input_n_classes, output_n_classes, input_proj_weights, output_proj_weights = get_module_classes(module_classes)
-        self.input_proj_weights = input_proj_weights
-        self.output_proj_weights = output_proj_weights
         
         self.init_dict = {"max_std_sigma_0":max_std_sigma_0,
                           "max_std_sigma_1":max_std_sigma_1}
-        feat_i_classes = n_features + input_n_classes
+        feat_i_classes = n_features + hidden_state_dim
         downsample_feats = feat_i_classes
         names = ["all_x_all_ampl_2", "inp_decomp_vecs_2", 
                  "out_decomp_vecs_2", "all_x_all_bias_2", 
                  "pos_dep_ampl_weights_2", "knn_activations_2"] 
-        shapes = [(5, downsample_feats, output_n_classes), (5, downsample_feats, 1), 
-                  (5, 1, output_n_classes), (5, 1, output_n_classes), 
-                  (1, feat_i_classes, output_n_classes), (2, feat_i_classes, downsample_feats)] 
+        shapes = [(5, downsample_feats, hidden_state_dim), (5, downsample_feats, 1), 
+                  (5, 1, hidden_state_dim), (5, 1, hidden_state_dim), 
+                  (1, feat_i_classes, hidden_state_dim), (2, feat_i_classes, downsample_feats)] 
         self.parameter_list = create_parameter_list(names, shapes, model_type, init_dict) 
     
     def forward(self, input_dict): 
@@ -1100,8 +1017,6 @@ class EvenWiderAttnDecompClassCoherence(nn.Module):
         class_logits = input_dict["outputs"]
         orig_embed_full, pos_embed = input_dict["x_embeds"], input_dict["pos_embed"]
         class_logits = F.softmax(class_logits, dim = -1)*masks
-        input_proj_weights = self.input_proj_weights.to(input_dict["device"])
-        class_logits = class_logits@input_proj_weights
         orig_embed_fuller = torch.cat([orig_embed_full, class_logits], dim = -1)
 
         conv_feat_vecs_0 = orig_embed_fuller.clone()@lp.knn_activations_2[0]
@@ -1159,8 +1074,6 @@ class EvenWiderAttnDecompClassCoherence(nn.Module):
         rec_dist_filt = rec_dist_filt_0 + rec_dist_filt_1 + rec_dist_filt_2
         per_pos_ampl = orig_embed_fuller@lp.pos_dep_ampl_weights_2 + b_attn_3
         class_logits = V_correction*per_pos_ampl*rec_dist_filt*masks
-        output_proj_weights = self.output_proj_weights.to(input_dict["device"])
-        class_logits = class_logits@output_proj_weights
         return class_logits
 
     @staticmethod
@@ -1179,18 +1092,15 @@ class EvenWiderAttnDecompClassCoherence(nn.Module):
             return inp_proj * out_proj * 0
             
 class ESMMimicryModule(nn.Module):
-    def __init__(self, n_features, module_classes, model_type, 
+    def __init__(self, n_features, hidden_state_dim, model_type, 
                  downsampling_feats, value_feats, n_heads, n_layers, n_landmarks, init_dict = {}):
         super().__init__()
-        input_n_classes, output_n_classes, input_proj_weights, output_proj_weights = get_module_classes(module_classes)
-        self.input_proj_weights = input_proj_weights
-        self.output_proj_weights = output_proj_weights
 
         self.n_landmarks = n_landmarks
-        feat_i_classes = n_features + input_n_classes
+        feat_i_classes = n_features + hidden_state_dim
         names = ["collect_classes", "query_linear", "key_linear", 
                  "value_linear", "project_original", "aggregation_params"]
-        shapes = [(1, value_feats*n_heads, output_n_classes),
+        shapes = [(1, value_feats*n_heads, hidden_state_dim),
                   (n_layers, 1, n_heads, feat_i_classes+1, downsampling_feats),
                   (n_layers, 1, 1, feat_i_classes+1, downsampling_feats),
                   (n_layers, 1, n_heads, feat_i_classes+1, value_feats),
@@ -1208,8 +1118,6 @@ class ESMMimicryModule(nn.Module):
         class_logits, masks = input_dict["outputs"], input_dict["masks"]
         orig_embed_full = input_dict["x_embeds"]
         class_logits = F.softmax(class_logits, dim = -1)*masks
-        input_proj_weights = self.input_proj_weights.to(input_dict["device"])
-        class_logits = class_logits@input_proj_weights
         orig_embed_fuller = torch.cat([orig_embed_full, class_logits], dim = -1).unsqueeze(1)
 
         n_layers = lp.query_linear.shape[0]
@@ -1228,8 +1136,6 @@ class ESMMimicryModule(nn.Module):
         
         esm_dist_filt = torch.squeeze(value_accum, dim = 1)
         class_logits = esm_dist_filt*masks
-        output_proj_weights = self.output_proj_weights.to(input_dict["device"])
-        class_logits = class_logits@output_proj_weights
         return class_logits
 
     def compute_accum(self, values, input_dict, lp, index):
@@ -1532,7 +1438,7 @@ class StructureModelConfig():
 ### DEFINITION OF THE MODEL OBJECT
 class GeneralizedStructureModel(nn.Module):
     #MODEL CONSTRUCTORS
-    def __init__(self, n_features, n_classes, module_init_dict, module_classes = [], additional_features = 0, 
+    def __init__(self, n_features, n_classes, hidden_state_dim, module_init_dict, additional_features = 0, 
                  window_size = None, active_modules = None, bilinear = False, model_type = "linear_laplace", model_name = "Model", 
                  init_dict = {}, load_state_dict = "", set_model_grad = {}, prior_sigma = 1, 
                  load_model_kwargs = {}, set_grad_kwargs = {}):
@@ -1542,10 +1448,8 @@ class GeneralizedStructureModel(nn.Module):
         self.n_features = n_features
         self.additional_features = additional_features
         self.window_size = window_size
-        
-        if len(module_classes) != 3:
-            module_classes = [range(n_classes), range(n_classes), n_classes]
-        self.module_classes = module_classes
+        self.hidden_state_dim = hidden_state_dim
+        self.n_classes = n_classes
         
         self.model_type = model_type
         self.model_name = model_name
@@ -1565,15 +1469,17 @@ class GeneralizedStructureModel(nn.Module):
         model_type = self.model_type
         n_features = self.n_features
         additional_features = self.additional_features
+        hidden_state_dim = self.hidden_state_dim
+        
         full_features = n_features + additional_features
-        module_classes = self.module_classes
         bilinear = self.bilinear
         module_count = len(module_init_dict) if bilinear else 0
         
         execution_order = nn.ModuleDict()  
-        execution_order["SharedVariableModule"] = SharedVariableModule(full_features, module_classes, model_type, module_count, init_dict)
+        execution_order["SharedVariableModule"] = SharedVariableModule(full_features, hidden_state_dim, model_type, 
+                                                                       module_count, n_classes, init_dict)
         for module_name, (module_fn, module_params) in module_init_dict.items():
-            execution_order[module_name] = module_fn(n_features=full_features, module_classes=module_classes, 
+            execution_order[module_name] = module_fn(n_features=full_features, hidden_state_dim=hidden_state_dim, 
                                                      model_type=model_type, init_dict=init_dict, **module_params)
         self.execution_order = execution_order
         if self.active_modules is None or len(self.active_modules) < len(execution_order):
@@ -1587,14 +1493,17 @@ class GeneralizedStructureModel(nn.Module):
         active_modules = self.active_modules
         execution_order = self.execution_order
         batch_size, max_length = x_feats.shape[0], x_feats.shape[1]
-        base_n_classes = self.module_classes[-1]
+        base_n_classes = self.n_classes
         
         window_size = self.window_size
         window_size = window_size if window_size != None else x_feats.shape[1]//2*2+1
         edge_pos = window_size//2
         pos_embed = torch.linspace(-edge_pos, edge_pos, window_size, dtype = torch.float32).to(device)
         pos_embed = torch.unsqueeze(torch.unsqueeze(pos_embed, -1), -1)
-        output_vec = torch.zeros((batch_size, max_length, base_n_classes)).to(device)
+        if self.bilinear:
+            output_vec = torch.zeros((batch_size, max_length, max_length, n_classes)).to(device)
+        else:
+            output_vec = torch.zeros((batch_size, max_length, n_classes)).to(device)
 
         data_dict = {"x":x_feats[..., :23], "x_other":x_feats[..., 23:], "masks":masks, 
                      "pos_embed":pos_embed, "outputs":output_vec, "device":device}
@@ -1627,7 +1536,7 @@ class GeneralizedStructureModel(nn.Module):
         return self.forward(x_feats, masks, return_logits = return_logits, debugging = debugging)
         
     def inference_model(self, dataloader, return_logits = False, enable_grad = False, batch_fn = None):
-        base_n_classes = self.module_classes[-1]
+        base_n_classes = self.n_classes
         if enable_grad:
             grad_context = torch.set_grad_enabled(True)
         else:
@@ -1922,7 +1831,7 @@ def train_model(model, datasets, lrs, wds, reset_state, use_module_per_epoch, se
     given_distr = get_train_dataset.given_distr
 
     unwrapped_model = lambda model: model.module if isinstance(model, nn.DataParallel) else model
-    base_n_classes = unwrapped_model(model).module_classes[-1]
+    base_n_classes = unwrapped_model(model).n_classes
     model_type = unwrapped_model(model).model_type
     bilinear = unwrapped_model(model).bilinear
     
