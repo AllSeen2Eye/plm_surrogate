@@ -2041,7 +2041,7 @@ def train_model(model, datasets, lrs, wds, reset_state, use_module_per_epoch, se
         if ((epoch+1) % ckpt_frequency) == 0:
             epoch_ckpt_name = ckpt_filename.replace("epoch", str(epoch+1))
             unwrapped_model(model).save_model(epoch_ckpt_name)
-            print(f"Saved checkpoint for model at ./{epoch_ckpt_name}")
+            print(f"Saved checkpoint for model at {epoch_ckpt_name}")
             
     debug_dict["model"] = unwrapped_model(model)   
     return {}
