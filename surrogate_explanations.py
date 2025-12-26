@@ -1,12 +1,12 @@
 import torch
+import shap
 
-try:
-    import shap
-except ImportError:
-    !pip install shap >> shap_install.log
-    import shap
+import numpy as np
+import matplotlib.pyplot as plt
+import torch.nn.functional as F
 
 from transformers import AutoTokenizer
+
 checkpoint_str = "facebook/esm2_t30_150M_UR50D" #"facebook/esm2_t30_150M_UR50D"
 tokenizer = AutoTokenizer.from_pretrained(checkpoint_str)
 
