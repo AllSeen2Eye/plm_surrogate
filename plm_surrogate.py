@@ -417,16 +417,14 @@ class SharedVariableModule(nn.Module):
         names = ["features2class", "conv_ampl_1"]
         shapes = [(1, n_features, hidden_state_dim), (1, n_features, hidden_state_dim)]
         if module_count > 0:
-            names = names + [f"module_projection_{i}" for i in range(module_count)]
-            shapes = shapes + [(1, hidden_state_dim, n_classes)]*module_count
+            names = names + [f"output_projection_{i}" for i in range(module_count)] + [f"latent_projection_{i}" for i in range(module_count)]
+            shapes = shapes + [(1, hidden_state_dim, hidden_state_dim)]*module_count + [(1, hidden_state_dim, n_classes)]*module_count
         self.parameter_list = create_parameter_list(names, shapes, model_type, init_dict)
-        self.dummy_output = torch.zeros((1, 1, 1))
 
     def forward(self, input_dict):
         lp = unpack_parameter_list(self.parameter_list) #local_params
         for key, value in lp.__dict__.items():
             input_dict[key] = value
-        return self.dummy_output.to(input_dict["device"])
             
 class InputOutputEmbeddingModule(nn.Module):
     def __init__(self, n_features, hidden_state_dim, 
@@ -446,7 +444,7 @@ class InputOutputEmbeddingModule(nn.Module):
                   (1, 1, hidden_state_dim), (1, 1, hidden_state_dim), (1, 1, hidden_state_dim), (1, 1, hidden_state_dim)]
         if additional_features > 0:
             names.append("add_embed"), shapes.append((2, 1, additional_features))
-            names.append("lda_class_map"), shapes.append((1, additional_features + cut_features, base_n_classes))
+            names.append("lda_class_map"), shapes.append((1, additional_features + cut_features, hidden_state_dim))
         self.parameter_list = create_parameter_list(names, shapes, model_type, init_dict)
         
     def forward(self, input_dict):
@@ -762,7 +760,7 @@ class SquareAttnCorrection(nn.Module):
         
     def forward(self, input_dict):
         lp = unpack_parameter_list(self.parameter_list) #local_params
-        orig_embed_full, class_logits = input_dict["x_embeds"], input_dict["outputs"]
+        orig_embed_full, class_logits = input_dict["x_embeds"], input_dict["latent_outputs"]
         masks, features2class = input_dict["masks"], input_dict["features2class"]
         
         square_w = lp.class_x_class_lora
@@ -791,7 +789,7 @@ class SeqWideImportantRegions(nn.Module):
         
     def forward(self, input_dict):
         lp = unpack_parameter_list(self.parameter_list) #local_params
-        class_logits, masks = input_dict["outputs"], input_dict["masks"]
+        class_logits, masks = input_dict["latent_outputs"], input_dict["masks"]
         orig_embed_full, features2class = input_dict["x_embeds"], input_dict["features2class"]
         
         pi_logit_input = class_logits - torch.max(class_logits, dim = -1, keepdim = True).values
@@ -829,7 +827,7 @@ class AttnDecompClassCoherence(nn.Module):
 
         device = input_dict["device"] 
         masks = input_dict["masks"]
-        class_logits = input_dict["outputs"]
+        class_logits = input_dict["latent_outputs"]
         orig_embed_full, pos_embed = input_dict["x_embeds"], input_dict["pos_embed"]
         class_logits = F.softmax(class_logits, dim = -1)*masks
         orig_embed_fuller = torch.cat([orig_embed_full, class_logits], dim = -1)
@@ -914,7 +912,7 @@ class WiderAttnDecompClassCoherence(nn.Module):
 
         device = input_dict["device"] 
         masks = input_dict["masks"] 
-        class_logits = input_dict["outputs"]*masks
+        class_logits = input_dict["latent_outputs"]*masks
         orig_embed_full, pos_embed = input_dict["x_embeds"], input_dict["pos_embed"]
         class_logits = F.softmax(class_logits, dim = -1)*masks
         orig_embed_fuller = torch.cat([orig_embed_full, class_logits], dim = -1)
@@ -1014,7 +1012,7 @@ class EvenWiderAttnDecompClassCoherence(nn.Module):
 
         device = input_dict["device"] 
         masks = input_dict["masks"] 
-        class_logits = input_dict["outputs"]
+        class_logits = input_dict["latent_outputs"]
         orig_embed_full, pos_embed = input_dict["x_embeds"], input_dict["pos_embed"]
         class_logits = F.softmax(class_logits, dim = -1)*masks
         orig_embed_fuller = torch.cat([orig_embed_full, class_logits], dim = -1)
@@ -1115,7 +1113,7 @@ class ESMMimicryModule(nn.Module):
         lp = unpack_parameter_list(self.parameter_list) #local_params
         
         device = input_dict["device"]
-        class_logits, masks = input_dict["outputs"], input_dict["masks"]
+        class_logits, masks = input_dict["latent_outputs"], input_dict["masks"]
         orig_embed_full = input_dict["x_embeds"]
         class_logits = F.softmax(class_logits, dim = -1)*masks
         orig_embed_fuller = torch.cat([orig_embed_full, class_logits], dim = -1).unsqueeze(1)
@@ -1470,14 +1468,15 @@ class GeneralizedStructureModel(nn.Module):
         n_features = self.n_features
         additional_features = self.additional_features
         hidden_state_dim = self.hidden_state_dim
+        base_n_classes = self.n_classes
         
         full_features = n_features + additional_features
-        bilinear = self.bilinear
-        module_count = len(module_init_dict) if bilinear else 0
+        bilinear, need_projection = self.bilinear, self.hidden_state_dim != self.n_classes
+        module_count = len(module_init_dict) if (need_projection or bilinear) else 0
         
         execution_order = nn.ModuleDict()  
         execution_order["SharedVariableModule"] = SharedVariableModule(full_features, hidden_state_dim, model_type, 
-                                                                       module_count, n_classes, init_dict)
+                                                                       module_count, base_n_classes, init_dict)
         for module_name, (module_fn, module_params) in module_init_dict.items():
             execution_order[module_name] = module_fn(n_features=full_features, hidden_state_dim=hidden_state_dim, 
                                                      model_type=model_type, init_dict=init_dict, **module_params)
@@ -1488,52 +1487,61 @@ class GeneralizedStructureModel(nn.Module):
             self.active_modules = dict(zip(list(execution_order.keys()), active_modules))
 
     #MODEL CALLERS
-    def forward(self, x_feats, masks, return_logits = True, debugging = False):
+    def forward(self, x_feats, masks, return_logits = True, return_prev_compute = False):
         device = x_feats.device
         active_modules = self.active_modules
         execution_order = self.execution_order
         batch_size, max_length = x_feats.shape[0], x_feats.shape[1]
-        base_n_classes = self.n_classes
+        base_n_classes, bilinear = self.n_classes, self.bilinear
+        need_projection = self.hidden_state_dim != self.n_classes
         
         window_size = self.window_size
         window_size = window_size if window_size != None else x_feats.shape[1]//2*2+1
         edge_pos = window_size//2
         pos_embed = torch.linspace(-edge_pos, edge_pos, window_size, dtype = torch.float32).to(device)
         pos_embed = torch.unsqueeze(torch.unsqueeze(pos_embed, -1), -1)
-        if self.bilinear:
+        
+        if bilinear:
             output_vec = torch.zeros((batch_size, max_length, max_length, n_classes)).to(device)
         else:
             output_vec = torch.zeros((batch_size, max_length, n_classes)).to(device)
+        latent_vec = torch.zeros((batch_size, max_length, self.hidden_state_dim)).to(device)
 
-        data_dict = {"x":x_feats[..., :23], "x_other":x_feats[..., 23:], "masks":masks, 
-                     "pos_embed":pos_embed, "outputs":output_vec, "device":device}
+        data_dict = {"x":x_feats[..., :23], "x_other":x_feats[..., 23:], 
+                     "masks":masks, "pos_embed":pos_embed, "class_outputs":output_vec, 
+                     "latent_outputs":latent_vec, "device":device}
 
-        for module_order, module_name in enumerate(execution_order.keys()):
-            real_module_order = module_order - 1
+        execution_order.SharedVariableModule(data_dict)
+        for module_order, module_name in enumerate(list(execution_order.keys())[1:]):
             use_module, module_fn = active_modules[module_name], execution_order[module_name]
             if use_module > 1e-08:
                 with record_function(module_name):
                     module_output = module_fn(data_dict)*use_module
-                    if module_order >= 0 and self.bilinear:
-                        data_dict[f"class_logits_{module_name}"] = module_output
-                        extract_projection = input_dict[f"module_projection_{module_order}"]
-                        module_output = module_output@extract_projection@module_output.permute(0, 2, 1)
-                        data_dict["outputs"] = data_dict["outputs"] + module_output
-                    elif module_order >= 0 and not self.bilinear:
-                        data_dict[f"class_logits_{module_name}"] = module_output
-                        data_dict["outputs"] = data_dict["outputs"] + module_output
+                    data_dict[f"class_logits_{module_name}"] = module_output
+                    if need_projection or bilinear:
+                        extract_projection = data_dict[f"output_projection_{module_order}"]
+                        latent_projection = data_dict[f"latent_projection_{module_order}"]
+                        module_output = module_output@extract_projection
+                        latent_output = module_output@latent_projection
+                    else:
+                        latent_output = module_output.clone()
+                    if bilinear:
+                        module_output = module_output@data_dict[f"class_logits_{module_name}"].permute(0, 2, 1)
+                        module_output = (module_output + module_output.permute(0, 2, 1))/2
+                    data_dict["latent_outputs"] = data_dict["latent_outputs"] + latent_output
+                    data_dict["class_outputs"] = data_dict["class_outputs"] + module_output
         del data_dict["device"]
 
         if not return_logits and base_n_classes > 1:
-            data_dict["outputs"] = F.softmax(data_dict["outputs"], dim = -1)
+            data_dict["class_outputs"] = F.softmax(data_dict["class_outputs"], dim = -1)
         if not return_logits and base_n_classes == 1:
-            data_dict["outputs"] = F.sigmoid(data_dict["outputs"])
-        if debugging == False:
-            return data_dict["outputs"]
+            data_dict["class_outputs"] = F.sigmoid(data_dict["class_outputs"])
+        if return_prev_compute == False:
+            return data_dict["class_outputs"]
         return data_dict
 
-    def call_model(self, x_feats, masks, return_logits = True, debugging = False):
-        return self.forward(x_feats, masks, return_logits = return_logits, debugging = debugging)
+    def call_model(self, x_feats, masks, return_logits = True, return_prev_compute = False):
+        return self.forward(x_feats, masks, return_logits, return_prev_compute)
         
     def inference_model(self, dataloader, return_logits = False, enable_grad = False, batch_fn = None):
         base_n_classes = self.n_classes
@@ -1805,8 +1813,8 @@ class GeneralizedStructureModel(nn.Module):
         return cov_params
         
     #DUNDER FUNCTIONS
-    def __call__(self, x_feats, masks, return_logits = True, debugging = False):
-        return self.call_model(x_feats, masks, return_logits, debugging)
+    def __call__(self, x_feats, masks, return_logits = True, return_prev_compute = False):
+        return self.call_model(x_feats, masks, return_logits, return_prev_compute)
 
     def __len__(self):
         return self.get_model_size(detailed = False)                    
@@ -1844,7 +1852,6 @@ def train_model(model, datasets, lrs, wds, reset_state, use_module_per_epoch, se
     else: 
         loss_fn = nn.KLDivLoss(reduction = "none")
     optimizer_fn = torch.optim.AdamW(model.parameters(), lr = 0, weight_decay = 0)
-
     epochs = min(len(lrs), len(wds), len(use_module_per_epoch), len(reset_state))
     if print_interm is False:
         print_interm = epochs+1
@@ -1878,10 +1885,10 @@ def train_model(model, datasets, lrs, wds, reset_state, use_module_per_epoch, se
         for (x_feats, y_true, masks) in train_dataloader:
             x_feats, y_true, masks = x_feats.to(sent_device), y_true.to(sent_device), masks.to(sent_device)
             with autocast(device_type = sent_device.type, enabled = True, dtype = cast_dtype):
-                y_pred = model(x_feats, masks, debugging = debugging)
+                y_pred = model(x_feats, masks, return_prev_compute = debugging)
                 if debugging:
                     debug_dict |= y_pred
-                    y_pred = y_pred["outputs"]
+                    y_pred = y_pred["class_outputs"]
                 if not given_distr and base_n_classes > 1:
                     y_true = y_true.to(int)
                 elif not given_distr and base_n_classes == 1:
