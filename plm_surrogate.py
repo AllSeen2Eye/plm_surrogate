@@ -418,7 +418,7 @@ class SharedVariableModule(nn.Module):
         shapes = [(1, n_features, hidden_state_dim), (1, n_features, hidden_state_dim)]
         if module_count > 0:
             names = names + [f"output_projection_{i}" for i in range(module_count)] + [f"latent_projection_{i}" for i in range(module_count)]
-            shapes = shapes + [(1, hidden_state_dim, hidden_state_dim)]*module_count + [(1, hidden_state_dim, n_classes)]*module_count
+            shapes = shapes + [(1, hidden_state_dim, n_classes)]*module_count + [(1, hidden_state_dim, hidden_state_dim)]*module_count
         self.parameter_list = create_parameter_list(names, shapes, model_type, init_dict)
 
     def forward(self, input_dict):
@@ -1518,18 +1518,22 @@ class GeneralizedStructureModel(nn.Module):
                 with record_function(module_name):
                     module_output = module_fn(data_dict)*use_module
                     data_dict[f"class_logits_{module_name}"] = module_output
+                    
                     if need_projection or bilinear:
                         extract_projection = data_dict[f"output_projection_{module_order}"]
                         latent_projection = data_dict[f"latent_projection_{module_order}"]
-                        module_output = module_output@extract_projection
-                        latent_output = module_output@latent_projection
+                        class_module_output = module_output@extract_projection
+                        latent_module_output = module_output@latent_projection
                     else:
-                        latent_output = module_output.clone()
+                        class_module_output = module_output.clone()
+                        latent_module_output = module_output.clone()
+                        
                     if bilinear:
-                        module_output = module_output@data_dict[f"class_logits_{module_name}"].permute(0, 2, 1)
-                        module_output = (module_output + module_output.permute(0, 2, 1))/2
-                    data_dict["latent_outputs"] = data_dict["latent_outputs"] + latent_output
-                    data_dict["class_outputs"] = data_dict["class_outputs"] + module_output
+                        class_module_output = module_output@data_dict[f"class_logits_{module_name}"].permute(0, 2, 1)
+                        class_module_output = (class_module_output + class_module_output.permute(0, 2, 1))/2
+
+                    data_dict["latent_outputs"] = data_dict["latent_outputs"] + latent_module_output
+                    data_dict["class_outputs"] = data_dict["class_outputs"] + class_module_output
         del data_dict["device"]
 
         if not return_logits and base_n_classes > 1:
