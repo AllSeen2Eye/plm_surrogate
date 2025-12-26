@@ -1504,7 +1504,7 @@ class GeneralizedStructureModel(nn.Module):
         if bilinear:
             output_vec = torch.zeros((batch_size, max_length, max_length, n_classes)).to(device)
         else:
-            output_vec = torch.zeros((batch_size, max_length, n_classes)).to(device)
+            output_vec = torch.zeros((batch_size, max_length, base_n_classes)).to(device)
         latent_vec = torch.zeros((batch_size, max_length, self.hidden_state_dim)).to(device)
 
         data_dict = {"x":x_feats[..., :23], "x_other":x_feats[..., 23:], 
