@@ -30,7 +30,7 @@ def get_embeddings(model, tokenizer_mine, device, inp):
     return results
 
 def factorize(number):
-    candidate_factors, actual_factors = range(number), []
+    candidate_factors, actual_factors = range(1, number), []
     for factor in candidate_factors:
         if number % factor == 0:
             actual_factors.append(factor)
