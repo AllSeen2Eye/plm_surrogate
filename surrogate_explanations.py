@@ -161,7 +161,9 @@ def visualize_betweenclasscoherence(structure_model, window_size = 21, title_leg
             ax[j//n_cols, j%n_cols].set_title(title_legend[j])
         ax[j//n_cols, j%n_cols].grid()
         if len(legend) > 0:
-            ax[j//n_cols, j%n_cols].legend(legend, loc = "upper left");def visualize_logits(seq, model, device, to_probs = False):
+            ax[j//n_cols, j%n_cols].legend(legend, loc = "upper left");
+            
+def visualize_logits(seq, model, device, to_probs = False):
     max_length = len(seq)+2
     x_feats = np.zeros((1, max_length, 23), dtype = np.float32)
     x_feats[:, 0, 21] = 1
