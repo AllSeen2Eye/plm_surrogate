@@ -32,7 +32,7 @@ try:
 except ModuleNotFoundError:
     xla_device_available = False
 
-from plm_surrogate.commons import *
+import plm_surrogate.commons as commons
 
 OUTPUT_DIR, CKPT_DIR, TRC_DIR, TMP_DIR = "./models", "./checkpoints", "./trace", "./tmp"
 folders_to_create = [OUTPUT_DIR, CKPT_DIR, TRC_DIR, TMP_DIR]
@@ -134,7 +134,7 @@ class StructureDataset(Dataset):
 
         x_feats[0, 21] = 1
         x_feats[seq_len+1, 22] = 1
-        x_feats[1:seq_len+1, :21] = torch.from_numpy(np.reshape(np.array(list(seq)), (-1, 1)) == x_tokens).to(float)
+        x_feats[1:seq_len+1, :21] = torch.from_numpy(np.reshape(np.array(list(seq)), (-1, 1)) == commons.x_tokens).to(float)
         if other_feats > 0:
             x_feats[1:seq_len+1, 23:] = torch.from_numpy(others).to(float)
         
@@ -439,7 +439,7 @@ class InputOutputEmbeddingModule(nn.Module):
                  "bias_embeds", "nat_embed", "pad_emb", "class_unk_emb", 
                  "class_bos_emb", "class_eos_emb", "class_pad_emb", "class_freq_emb"]
         shapes = [(1, 1, n_features), (1, 1, n_features), (1, 1, n_features), (1, n_features, n_features),
-                  (1, 1, n_features), (1, len(aa_alphabet)-1, n_features), (1, 1, n_features), (1, 1, hidden_state_dim),
+                  (1, 1, n_features), (1, len(commons.aa_alphabet)-1, n_features), (1, 1, n_features), (1, 1, hidden_state_dim),
                   (1, 1, hidden_state_dim), (1, 1, hidden_state_dim), (1, 1, hidden_state_dim), (1, 1, hidden_state_dim)]
         if additional_features > 0:
             names.append("add_embed"), shapes.append((2, 1, additional_features))
