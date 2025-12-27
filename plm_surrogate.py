@@ -34,8 +34,8 @@ except ModuleNotFoundError:
 
 import plm_surrogate.commons as commons
 
-OUTPUT_DIR, CKPT_DIR, TRC_DIR, TMP_DIR = "./models", "./checkpoints", "./trace", "./tmp"
-folders_to_create = [OUTPUT_DIR, CKPT_DIR, TRC_DIR, TMP_DIR]
+LOG_DIR, OUTPUT_DIR, CKPT_DIR, TRC_DIR, TMP_DIR = "./logs", "./models", "./checkpoints", "./trace", "./tmp"
+folders_to_create = [LOG_DIR, OUTPUT_DIR, CKPT_DIR, TRC_DIR, TMP_DIR]
 for select_DIR in folders_to_create:
     if not os.path.exists(select_DIR):
         os.mkdir(select_DIR)
