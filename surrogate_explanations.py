@@ -45,7 +45,7 @@ def visualize_shap(seq, model, tokenizer, device, full_class_str, figure_dims = 
     n_classes = n_classes if n_classes > 2 else 1
     if len(figure_dims) < 2:
         figure_dims = factorize(n_classes)
-    n_rows, n_cols = figure_dims
+    n_cols, n_rows = figure_dims
   
     x_ =  [" ".join(list(seq))]
     shap_values = np.zeros((len(x_[0].split(" ")), len(x_[0].split(" ")), n_classes))
@@ -115,7 +115,7 @@ def visualize_solubilitymodule(structure_model, window_size = 21, title_legend =
 
     if len(figure_dims) < 2:
         figure_dims = factorize(hidden_state_dim)
-    n_rows, n_cols = figure_dims
+    n_cols, n_rows = figure_dims
     
     jet_class = plt.get_cmap("jet", n_features)
     fig, ax = plt.subplots(n_rows, n_cols, figsize = (n_rows*8, n_cols*8))
@@ -149,7 +149,7 @@ def visualize_betweenclasscoherence(structure_model, window_size = 21, title_leg
 
     if len(figure_dims) < 2:
         figure_dims = factorize(hidden_state_dim)
-    n_rows, n_cols = figure_dims
+    n_cols, n_rows = figure_dims
 
     jet_class = plt.get_cmap("jet", hidden_state_dim)
     fig, ax = plt.subplots(n_rows, n_cols, figsize = (n_rows*8, n_cols*8))
