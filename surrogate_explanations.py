@@ -9,7 +9,7 @@ from transformers import AutoTokenizer
 checkpoint_str = "facebook/esm2_t30_150M_UR50D" #"facebook/esm2_t30_150M_UR50D"
 esm_tokenizer = AutoTokenizer.from_pretrained(checkpoint_str)
 
-from plm_surrogate.commons import *
+import plm_surrogate.commons as commons
 
 def tokenizer_mine(seqs, device):
     seq_size = max([len(seq.split(" ")) for seq in seqs])
@@ -19,8 +19,8 @@ def tokenizer_mine(seqs, device):
     x_feats[:, 0, 21] = 1
     masks = torch.zeros((len(seqs), max_len, 1)).to(device)
     for i, seq in enumerate(seqs):
-        seq = [aa if aa in list(aa_alphabet) else "X" for aa in seq.split(" ")]
-        x_feats[i, 1:seq_size+1, :21] = torch.FloatTensor(np.reshape(np.array(seq), (-1, 1)) == x_tokens)
+        seq = [aa if aa in list(commons.aa_alphabet) else "X" for aa in seq.split(" ")]
+        x_feats[i, 1:seq_size+1, :21] = torch.FloatTensor(np.reshape(np.array(seq), (-1, 1)) == commons.x_tokens)
         x_feats[i, seq_size+1, 22] = 1
         masks[i, 1:seq_size+1] = 1
     return x_feats, masks
@@ -167,7 +167,7 @@ def visualize_logits(seq, model, device, to_probs = False):
     max_length = len(seq)+2
     x_feats = np.zeros((1, max_length, 23), dtype = np.float32)
     x_feats[:, 0, 21] = 1
-    x_feats[0, 1:len(seq)+1, :21] = np.reshape(np.array(list(seq)), (-1, 1)) == x_tokens
+    x_feats[0, 1:len(seq)+1, :21] = np.reshape(np.array(list(seq)), (-1, 1)) == commons.x_tokens
     x_feats[0, len(seq)+1, 22] = 1
     masks = np.zeros((1, max_length, 1), dtype = np.float32)
     masks[0, 1:len(seq)+1] = 1
