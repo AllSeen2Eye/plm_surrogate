@@ -6,9 +6,11 @@ import matplotlib.pyplot as plt
 import torch.nn.functional as F
 
 from transformers import AutoTokenizer
-
 checkpoint_str = "facebook/esm2_t30_150M_UR50D" #"facebook/esm2_t30_150M_UR50D"
 esm_tokenizer = AutoTokenizer.from_pretrained(checkpoint_str)
+
+aa_alphabet = "ACDEFGHIKLMNPQRSTVWYX"
+x_tokens = np.reshape(np.array(list(aa_alphabet)), (1, -1))
 
 def tokenizer_mine(seqs, device):
     seq_size = max([len(seq.split(" ")) for seq in seqs])
