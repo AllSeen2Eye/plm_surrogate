@@ -1976,7 +1976,7 @@ def generalized_train_fn(rank, world_size, sent_device, config_obj, debug_dict):
 
     training_init_dict = config_obj.config_training_init(sent_device, world_size)
     output_name = config_obj["training/output_name"]
-    json_output = ".".join(output_name.split(".")[:-1] + [".json"])
+    json_output = ".".join(output_name.split(".")[:-1] + ["json"])
     config_obj.to_json(json_output)
     debug_dict = train_model(model = structure_model, sent_device = sent_device, 
                              debug_dict = debug_dict, **training_init_dict)
