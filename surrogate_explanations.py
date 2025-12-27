@@ -60,8 +60,8 @@ def visualize_shap(seq, model, tokenizer, device, full_class_str, figure_dims = 
     fig, ax = plt.subplots(n_rows, n_cols, figsize = (n_cols*8, n_rows*8))
     for class_id in range(n_classes):
       residual_shap_matrix = shap_values[..., class_id]
-      ax[class_id//4, class_id%4].matshow(residual_shap_matrix, vmin = min_val, vmax = max_val, cmap = "coolwarm")
-      ax[class_id//4, class_id%4].set_title(f"{full_class_str[class_id]} {min_val:.3f} to {max_val:.3f}")
+      ax[class_id//n_cols, class_id%n_cols].matshow(residual_shap_matrix, vmin = min_val, vmax = max_val, cmap = "coolwarm")
+      ax[class_id//n_cols, class_id%n_cols].set_title(f"{full_class_str[class_id]} {min_val:.3f} to {max_val:.3f}")
 
 def visualize_physicochemical(structure_model, feat_id, class_id, window_size = 121):
     all_pos = np.reshape(list(range(0, window_size)), (-1, 1))
