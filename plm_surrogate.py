@@ -51,9 +51,6 @@ scaler = torch.amp.GradScaler(device)
 
 
 ### DEFINE AND IMPORT CONSTANTS
-aa_alphabet = "ACDEFGHIKLMNPQRSTVWYX"
-x_tokens = np.reshape(np.array(list(aa_alphabet)), (1, -1))
-
 def get_constants(aaprop_file_name, wp_file_name, n_features = 15):
     aa_data = pd.read_csv(aaprop_file_name, index_col="Name")
 
