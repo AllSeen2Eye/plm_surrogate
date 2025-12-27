@@ -89,7 +89,8 @@ def visualize_solubilitymodule(structure_model, window_size = 21, title_legend =
     edge_pos = window_size//2
     pos_embed = np.linspace(-edge_pos, edge_pos, window_size).astype(float)
     pos_embed = np.expand_dims(np.expand_dims(pos_embed, -1), -1)
-    n_features = structure_model.n_features + structure_model.additional_features - structure_model.cut_features
+    cut_features = structure_model.execution_order.InputOutputEmbeddingModule.cut_features
+    n_features = structure_model.n_features + structure_model.additional_features - cut_features
     hidden_state_dim = structure_model.hidden_state_dim
 
     params_to_extract = ["conv_ampl_0", "conv_ampl_1", "period_conv", 
@@ -171,7 +172,7 @@ def visualize_logits(seq, model, device, to_probs = False):
     x_feats[0, len(seq)+1, 22] = 1
     masks = np.zeros((1, max_length, 1), dtype = np.float32)
     masks[0, 1:len(seq)+1] = 1
-    debug_dict = model(torch.FloatTensor(x_feats).to(device), torch.FloatTensor(masks).to(device), debugging = True)
+    debug_dict = model(torch.FloatTensor(x_feats).to(device), torch.FloatTensor(masks).to(device), return_prev_compute = True)
 
     count_actives = 0
     fig, ax = plt.subplots(sum(model.active_modules.values())-1, 2, figsize = (sum(model.active_modules.values())*2, 20), width_ratios = [10, 1])
