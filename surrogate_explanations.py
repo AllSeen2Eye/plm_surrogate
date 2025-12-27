@@ -97,9 +97,7 @@ def visualize_solubilitymodule(structure_model, window_size = 21, title_legend =
                          "phase_conv", "mean_pos_conv", "std_pos_conv", 
                          "true_period", "solvent_access_w", "rotate_embeds"]
     params_to_extract = list(zip(params_to_extract, len(params_to_extract)*["mu"]))
-    conv_ampl_0, conv_ampl_1, period_cos,\
-    phase_cos, mean_pos, std_pos_conv, true_period,\ 
-    solvent_access_w, rotate_embeds = structure_model.get_model_params(params_to_extract)
+    conv_ampl_0, conv_ampl_1, period_cos, phase_cos, mean_pos, std_pos_conv, true_period, solvent_access_w, rotate_embeds = structure_model.get_model_params(params_to_extract)
     solubility_module = structure_model.execution_order.SolubilityModule
     max_std_pos_conv = solubility_module.init_dict["max_std_pos_conv"]
     starting_period = solubility_module.init_dict["starting_period"]
