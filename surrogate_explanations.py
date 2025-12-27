@@ -9,7 +9,7 @@ from transformers import AutoTokenizer
 checkpoint_str = "facebook/esm2_t30_150M_UR50D" #"facebook/esm2_t30_150M_UR50D"
 esm_tokenizer = AutoTokenizer.from_pretrained(checkpoint_str)
 
-from commons import *
+from plm_surrogate.commons import *
 
 def tokenizer_mine(seqs, device):
     seq_size = max([len(seq.split(" ")) for seq in seqs])
