@@ -31,7 +31,7 @@ def get_embeddings(model, tokenizer_mine, device, inp):
     return results
 
 def factorize(number):
-    candidate_factors, actual_factors = range(1, number), []
+    candidate_factors, actual_factors = range(1, number+1), []
     for factor in candidate_factors:
         if number % factor == 0:
             actual_factors.append(factor)
@@ -45,7 +45,7 @@ def visualize_shap(seq, model, tokenizer, device, full_class_str, figure_dims = 
     n_classes = n_classes if n_classes > 2 else 1
     if len(figure_dims) < 2:
         figure_dims = factorize(n_classes)
-    n_cols, n_rows = figure_dims
+    n_rows, n_cols = figure_dims
   
     x_ =  [" ".join(list(seq))]
     shap_values = np.zeros((len(x_[0].split(" ")), len(x_[0].split(" ")), n_classes))
@@ -59,9 +59,9 @@ def visualize_shap(seq, model, tokenizer, device, full_class_str, figure_dims = 
     
     fig, ax = plt.subplots(n_rows, n_cols, figsize = (n_cols*8, n_rows*8))
     for class_id in range(n_classes):
-      residual_shap_matrix = shap_values[..., class_id]
-      ax[class_id//n_cols, class_id%n_cols].matshow(residual_shap_matrix, vmin = min_val, vmax = max_val, cmap = "coolwarm")
-      ax[class_id//n_cols, class_id%n_cols].set_title(f"{full_class_str[class_id]} {min_val:.3f} to {max_val:.3f}")
+        residual_shap_matrix = shap_values[..., class_id]
+        ax[class_id//n_cols, class_id%n_cols].matshow(residual_shap_matrix, vmin = min_val, vmax = max_val, cmap = "coolwarm")
+        ax[class_id//n_cols, class_id%n_cols].set_title(f"{full_class_str[class_id]} {min_val:.3f} to {max_val:.3f}")
 
 def visualize_physicochemical(structure_model, feat_id, class_id, window_size = 121):
     all_pos = np.reshape(list(range(0, window_size)), (-1, 1))
@@ -115,7 +115,7 @@ def visualize_solubilitymodule(structure_model, window_size = 21, title_legend =
 
     if len(figure_dims) < 2:
         figure_dims = factorize(hidden_state_dim)
-    n_cols, n_rows = figure_dims
+    n_rows, n_cols = figure_dims
     
     jet_class = plt.get_cmap("jet", n_features)
     fig, ax = plt.subplots(n_rows, n_cols, figsize = (n_rows*8, n_cols*8))
@@ -149,7 +149,7 @@ def visualize_betweenclasscoherence(structure_model, window_size = 21, title_leg
 
     if len(figure_dims) < 2:
         figure_dims = factorize(hidden_state_dim)
-    n_cols, n_rows = figure_dims
+    n_rows, n_cols = figure_dims
 
     jet_class = plt.get_cmap("jet", hidden_state_dim)
     fig, ax = plt.subplots(n_rows, n_cols, figsize = (n_rows*8, n_cols*8))
@@ -161,9 +161,7 @@ def visualize_betweenclasscoherence(structure_model, window_size = 21, title_leg
             ax[j//n_cols, j%n_cols].set_title(title_legend[j])
         ax[j//n_cols, j%n_cols].grid()
         if len(legend) > 0:
-            ax[j//n_cols, j%n_cols].legend(legend, loc = "upper left");
-
-def visualize_logits(seq, model, device, to_probs = False):
+            ax[j//n_cols, j%n_cols].legend(legend, loc = "upper left");def visualize_logits(seq, model, device, to_probs = False):
     max_length = len(seq)+2
     x_feats = np.zeros((1, max_length, 23), dtype = np.float32)
     x_feats[:, 0, 21] = 1
