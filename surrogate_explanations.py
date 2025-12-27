@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from transformers import AutoTokenizer
 
 checkpoint_str = "facebook/esm2_t30_150M_UR50D" #"facebook/esm2_t30_150M_UR50D"
-tokenizer = AutoTokenizer.from_pretrained(checkpoint_str)
+esm_tokenizer = AutoTokenizer.from_pretrained(checkpoint_str)
 
 def tokenizer_mine(seqs, device):
     seq_size = max([len(seq.split(" ")) for seq in seqs])
@@ -49,7 +49,7 @@ def visualize_shap(seq, model, tokenizer, device, full_class_str, figure_dims = 
     x_ =  [" ".join(list(seq))]
     shap_values = np.zeros((len(x_[0].split(" ")), len(x_[0].split(" ")), n_classes))
     for class_id in range(0, n_classes):
-        explainer = shap.Explainer(lambda inp: get_embeddings(model, tokenizer, device, inp)[..., class_id], tokenizer)
+        explainer = shap.Explainer(lambda inp: get_embeddings(model, tokenizer, device, inp)[..., class_id], esm_tokenizer)
         shap_values[..., class_id] = explainer(x_, fixed_context=1).values[0, 1:-1, 1:-1].T
     
     min_val, max_val = np.percentile(shap_values, [5, 95])
