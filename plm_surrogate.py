@@ -32,6 +32,8 @@ try:
 except ModuleNotFoundError:
     xla_device_available = False
 
+from plm_surrogate.commons import *
+
 OUTPUT_DIR, CKPT_DIR, TRC_DIR, TMP_DIR = "./models", "./checkpoints", "./trace", "./tmp"
 folders_to_create = [OUTPUT_DIR, CKPT_DIR, TRC_DIR, TMP_DIR]
 for select_DIR in folders_to_create:
@@ -48,7 +50,6 @@ device = (
 device = torch.device(device)
 print(f"Using {device} device")
 scaler = torch.amp.GradScaler(device)
-
 
 ### DEFINE AND IMPORT CONSTANTS
 def get_constants(aaprop_file_name, wp_file_name, n_features = 15):
