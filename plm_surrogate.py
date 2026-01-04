@@ -1730,6 +1730,24 @@ class GeneralizedStructureModel(nn.Module):
         else:
             return param_size
 
+    def pretty_parameter_count(self):
+        model_size_table = self.get_model_size(detailed = True, use_old_style = False)
+        model_size_table = pd.DataFrame([item[0].split(".") + [item[1]]for item in list(model_size_table.items())])[[0, 2, 4]]
+        model_size_table.columns = ["module", "name", "size"]
+        
+        printable_table = model_size_table.to_markdown()
+        borders = printable_table.split("\n")[1].replace(":", "-")
+        count_param_str = f"| Count the number of parameters: {sum(model_size_table['size'])}" 
+        count_param_str = count_param_str + (len(borders)-len(count_param_str) - 1)*" "+"|"
+        
+        print()
+        print(f"Parameter Count of {self.model_name} per Module:")
+        print(borders)
+        print(printable_table)
+        print(borders)
+        print(count_param_str)
+        print(borders)
+        
     def get_prior_loss(self):
         if not self.model_type in ["linear_laplace", "mean_field"]:
             return 0.0
