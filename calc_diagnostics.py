@@ -1,7 +1,9 @@
-import torch
 import math
-from torch.autograd import Variable
 import numpy as np
+import matplotlib.pyplot as plt
+
+import torch
+from torch.autograd import Variable
 
 import pyhessian
 from pyhessian.utils import group_product, get_params_grad, group_add, normalization, hessian_vector_product, orthnormal
@@ -57,7 +59,7 @@ def landscape_summary(density, grids, top_eigenvalues):
     print("Kappa (max abs eigenvalue / min abs eigenvalue, ravine detection):", np.round(kappa, 3))
     print("Epsilon (eigenvalue magnitude, sharpness of minimum):", np.round(epsilon, 3))
     print("Delta (density of eigenvalues < 0, saddlepoint check):", np.round(delta, 3))
-    print(f"Top {top_n} max eigenvalues:", np.round(top_eigenvalues, 3))
+    print(f"Top {len(top_eigenvalues)} max eigenvalues:", np.round(top_eigenvalues, 3))
 
 def visualize_eigenval_distr(density, grids):
     plt.semilogy(grids, density + 1.0e-7, c = "b")
