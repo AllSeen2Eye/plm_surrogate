@@ -98,7 +98,7 @@ def perturb_params(model_orig, model_perb, direction, alpha):
         m_perb.data = m_orig.data + alpha * d
     return model_perb
 
-def visualize_loss_slice(batch_dict, model, model_copy, direction_mode, loss_fn, lower_bound = -1.5, upper_bound = 1.5, steps = 51):
+def visualize_loss_slice(batch_dict, model, model_copy, direction, loss_fn, lower_bound = -1.5, upper_bound = 1.5, steps = 51):
     lams = np.linspace(lower_bound, upper_bound, steps).astype(np.float32)
     loss_list = np.zeros((steps, ))
     for i, lam in enumerate(lams):
