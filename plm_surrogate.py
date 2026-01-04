@@ -1721,7 +1721,7 @@ class GeneralizedStructureModel(nn.Module):
                 if use_old_style:
                     name = "_".join(key.split(".")[-2:])
                 else:
-                    name = key
+                    name = f"{module_name}.{key}"
                 if vector.requires_grad and key.split(".")[-1] in types:
                     param_size[name] = torch.numel(vector)
                     
