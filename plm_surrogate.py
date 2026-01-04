@@ -436,11 +436,11 @@ class InputOutputEmbeddingModule(nn.Module):
         self.additional_features = additional_features
         
         names = ["bos_emb", "eos_emb", "unk_emb", "rotate_embeds", 
-                 "bias_embeds", "nat_embed", "pad_emb", "class_unk_emb", 
-                 "class_bos_emb", "class_eos_emb", "class_pad_emb", "class_freq_emb"]
+                 "bias_embeds", "nat_embed", "class_unk_emb", 
+                 "class_bos_emb", "class_eos_emb", "class_freq_emb"]
         shapes = [(1, 1, n_features), (1, 1, n_features), (1, 1, n_features), (1, n_features, n_features),
-                  (1, 1, n_features), (1, len(commons.aa_alphabet)-1, n_features), (1, 1, n_features), (1, 1, hidden_state_dim),
-                  (1, 1, hidden_state_dim), (1, 1, hidden_state_dim), (1, 1, hidden_state_dim), (1, 1, hidden_state_dim)]
+                  (1, 1, n_features), (1, len(commons.aa_alphabet)-1, n_features), (1, 1, hidden_state_dim),
+                  (1, 1, hidden_state_dim), (1, 1, hidden_state_dim), (1, 1, hidden_state_dim)]
         if additional_features > 0:
             names.append("add_embed"), shapes.append((2, 1, additional_features))
             names.append("lda_class_map"), shapes.append((1, additional_features + cut_features, hidden_state_dim))
