@@ -1588,7 +1588,7 @@ class GeneralizedStructureModel(nn.Module):
         all_active_modules = list(filter(determine_if_run, all_modules))
 
         print("-"*70)
-        fn_outputs, accs_text = [], [f"Active Modules: {all_active_modules}"]
+        fn_outputs, accs_text = [], [f"Active Modules: {', '.join(all_active_modules)}"]
         for i, dataloader in enumerate(dataloaders):
             if hasattr(dataloader, "name"):
                 dloader_name = dataloader.name
@@ -1721,7 +1721,7 @@ class GeneralizedStructureModel(nn.Module):
                 if use_old_style:
                     name = "_".join(key.split(".")[-2:])
                 else:
-                    key = name
+                    name = key
                 if vector.requires_grad and key.split(".")[-1] in types:
                     param_size[name] = torch.numel(vector)
                     
