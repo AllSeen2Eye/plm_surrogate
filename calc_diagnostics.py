@@ -61,8 +61,8 @@ def landscape_summary(density, grids, top_eigenvalues):
     print("Delta (density of eigenvalues < 0, saddlepoint check):", np.round(delta, 3))
     print(f"Top {len(top_eigenvalues)} max eigenvalues:", np.round(top_eigenvalues, 3))
 
-def visualize_eigenval_distr(density, grids):
-    plt.semilogy(grids, density + 1.0e-7, c = "b")
+def visualize_eigenval_distr(density, grids, **semilogy_kwargs):
+    plt.semilogy(grids, density + 1.0e-7, **semilogy_kwargs)
     plt.ylabel('Density (Log Scale)', fontsize=14, labelpad=10)
     plt.xlabel('Eigenvalue', fontsize=14, labelpad=10)
     plt.xticks(fontsize=12)
@@ -99,14 +99,15 @@ def perturb_params(model_orig, model_perb, direction, alpha):
     return model_perb
 
 def visualize_loss_slice(batch_dict, model, model_copy, direction, direction_mode,
-                         loss_fn, lower_bound = -1.5, upper_bound = 1.5, steps = 51):
+                         loss_fn, lower_bound = -1.5, upper_bound = 1.5, steps = 51, **lineplot_kwargs):
     lams = np.linspace(lower_bound, upper_bound, steps).astype(np.float32)
     loss_list = np.zeros((steps, ))
     for i, lam in enumerate(lams):
         model_perb = perturb_params(model, model_copy, direction, lam)
         loss_list[i] = loss_fn(batch_dict, model_perb).item()
     
-    plt.plot(lams, loss_list)
+    plt.plot(lams, loss_list, **lineplot_kwargs)
     plt.ylabel('Loss')
     plt.xlabel('Perturbation')
-    plt.title(f'Slice of Loss Landscape, mode {direction_mode}');
+    plt.title(f'Slice of Loss Landscape, mode {direction_mode}')
+    plt.grid();
