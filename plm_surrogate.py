@@ -1083,11 +1083,12 @@ class EvenWiderAttnDecompClassCoherence(nn.Module):
             return inp_proj * out_proj * 0
             
 class ESMMimicryModule(nn.Module):
-    def __init__(self, n_features, hidden_state_dim, model_type, 
-                 downsampling_feats, value_feats, n_heads, n_layers, n_landmarks, init_dict = {}):
+    def __init__(self, n_features, hidden_state_dim, model_type, downsampling_feats, 
+                 value_feats, n_heads, n_layers, n_landmarks, max_laplace_std_attn, init_dict = {}):
         super().__init__()
 
-        self.n_landmarks = n_landmarks
+        self.init_dict = {"max_laplace_std_attn": max_laplace_std_attn, 
+                          "n_landmarks": n_landmarks}
         feat_i_classes = n_features + hidden_state_dim
         names = ["collect_classes", "query_linear", "key_linear", 
                  "value_linear", "project_original", "aggregation_params"]
@@ -1133,7 +1134,7 @@ class ESMMimicryModule(nn.Module):
         device = input_dict["device"]
         masks, pos_embed = input_dict["masks"], input_dict["pos_embed"]
         
-        seq_len, n_landmarks = values.shape[-2], self.n_landmarks
+        seq_len, n_landmarks = values.shape[-2], self.init_dict["n_landmarks"]
         if n_landmarks is not None:
             right_pad = int(np.ceil(seq_len/n_landmarks))*n_landmarks - seq_len
             values = F.pad(values, (0, 0, 0, right_pad))
@@ -1145,7 +1146,7 @@ class ESMMimicryModule(nn.Module):
         
         positions = torch.arange(masks.shape[1]).to(device)
         rel_positions = positions[None, None, None, :] - positions[None, None, :, None]  # [1, 1, L, L]
-        sigmas = torch.abs(lp.aggregation_params[index]) + 1/128
+        sigmas = torch.abs(lp.aggregation_params[index]) + self.init_dict["max_laplace_std_attn"]
         pos_mask = -sigmas*torch.abs(rel_positions)
         
         if n_landmarks is None:
