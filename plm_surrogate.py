@@ -1846,10 +1846,12 @@ def train_model(model, datasets, lrs, wds, reset_state, use_sam, use_module_per_
     
     if sent_device.type != "xla":
         get_train_dataset = train_dataloader.dataset
-        cast_dtype = torch.float32
+        cast_dtype = torch.float16
     else:
         get_train_dataset = train_dataloader._loader.dataset
         cast_dtype = torch.bfloat16
+    if use_sam:
+        cast_dtype = torch.float32 
 
     all_rows = len(get_train_dataset)
     N_tokens = get_train_dataset.n_tokens
@@ -1889,7 +1891,7 @@ def train_model(model, datasets, lrs, wds, reset_state, use_sam, use_module_per_
     for epoch in range(epochs):
         cumloss, cumacc, cumcount, cumpriorloss, done_rows = 0, 0, 0, 0, 0
         if reset_state[epoch]:
-            optimizer_fn = torch.optim.AdamW(model.parameters(), lr = lrs[epoch], weight_decay = wds[epoch])
+            optimizer_fn = type(optimizer_fn)(params = optimizer_fn.param_groups, defaults = optimizer_fn.defaults)
         else:
             adjust_optim(optimizer_fn, lrs[epoch], wds[epoch])
         if len(set_grad_array) == epochs:   
