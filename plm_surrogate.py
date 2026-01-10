@@ -1868,11 +1868,13 @@ def train_model(model, datasets, lrs, wds, reset_state, use_sam, use_module_per_
         loss_fn = nn.BCEWithLogitsLoss(reduction = "none", weight = class_weights)
     else: 
         loss_fn = nn.KLDivLoss(reduction = "none")
+        
     if not use_sam:
         optimizer_fn = torch.optim.AdamW(model.parameters(), lr = 0, weight_decay = 0)
     else:
         base_optimizer = torch.optim.AdamW
-        optimizer_fn = SAM(model.parameters(), base_optimizer, lr = 0, weight_decay = 0, adaptive = True, rho = 0.05)
+        optimizer_fn = SAM(model.parameters(), base_optimizer, lr = 0, weight_decay = 0)
+        
     epochs = min(len(lrs), len(wds), len(use_module_per_epoch), len(reset_state))
     if print_interm is False:
         print_interm = epochs+1
