@@ -32,6 +32,7 @@ try:
 except ModuleNotFoundError:
     xla_device_available = False
 
+from sam import SAM
 import plm_surrogate.commons as commons
 
 LOG_DIR, OUTPUT_DIR, CKPT_DIR, TRC_DIR, TMP_DIR = "./logs", "./models", "./checkpoints", "./trace", "./tmp"
@@ -1867,7 +1868,11 @@ def train_model(model, datasets, lrs, wds, reset_state, use_module_per_epoch, se
         loss_fn = nn.BCEWithLogitsLoss(reduction = "none", weight = class_weights)
     else: 
         loss_fn = nn.KLDivLoss(reduction = "none")
-    optimizer_fn = torch.optim.AdamW(model.parameters(), lr = 0, weight_decay = 0)
+    if not use_sam:
+        optimizer_fn = torch.optim.AdamW(model.parameters(), lr = 0, weight_decay = 0)
+    else:
+        base_optimizer = torch.optim.AdamW
+        optimizer_fn = SAM(model.parameters(), lr = 0, weight_decay = 0, adaptive = True, rho = 0.05)
     epochs = min(len(lrs), len(wds), len(use_module_per_epoch), len(reset_state))
     if print_interm is False:
         print_interm = epochs+1
@@ -1900,47 +1905,55 @@ def train_model(model, datasets, lrs, wds, reset_state, use_module_per_epoch, se
 
         for (x_feats, y_true, masks) in train_dataloader:
             x_feats, y_true, masks = x_feats.to(sent_device), y_true.to(sent_device), masks.to(sent_device)
-            with autocast(device_type = sent_device.type, enabled = True, dtype = cast_dtype):
-                y_pred = model(x_feats, masks, return_prev_compute = debugging)
-                if debugging:
-                    debug_dict |= y_pred
-                    y_pred = y_pred["class_outputs"]
-                if not given_distr and base_n_classes > 1:
-                    y_true = y_true.to(int)
-                elif not given_distr and base_n_classes == 1:
-                    y_true = y_true.to(cast_dtype)
-                else:
-                    y_pred = F.log_softmax(y_pred, dim = -1)
-
-                metrics_mask = masks.clone().flatten(0, 1) if not bilinear else (masks*masks.permute(0, 2, 1)).flatten()
-                given_distr_shape = (-1, ) if not given_distr else (-1, base_n_classes)
-                loss_val_unmasked = loss_fn(y_pred.reshape((-1, base_n_classes)).squeeze(-1), 
-                                            y_true.reshape(given_distr_shape))
-                loss_val_unmasked = loss_val_unmasked.reshape((metrics_mask.shape[0], -1))
-                loss_val = torch.sum(loss_val_unmasked*metrics_mask)/torch.sum(metrics_mask)
-                prior_loss_component = unwrapped_model(model).get_prior_loss()
-                loss_val_optim = loss_val*N_tokens + prior_loss_component
-            
-            if sent_device.type != "xla":
-                loss_is_nan = loss_val.isnan()
-                if loss_is_nan:
+            for step in range(int(use_sam)+1):
+                with autocast(device_type = sent_device.type, enabled = True, dtype = cast_dtype):
+                    y_pred = model(x_feats, masks, return_prev_compute = debugging)
                     if debugging:
-                        print ("\nWARNING: Loss is NaN")
-                        return debug_dict
+                        debug_dict |= y_pred
+                        y_pred = y_pred["class_outputs"]
+                    if not given_distr and base_n_classes > 1:
+                        y_true = y_true.to(int)
+                    elif not given_distr and base_n_classes == 1:
+                        y_true = y_true.to(cast_dtype)
                     else:
-                        raise ValueError ("Loss is NaN")
-            
-            if sent_device.type in {"cuda", "cpu", "mps"}:
-                scaler.scale(loss_val_optim).backward()
-                scaler.step(optimizer_fn)
-                scaler.update()
-                optimizer_fn.zero_grad()
-
-            elif sent_device.type == "xla":
-                loss_val_optim.backward()
-                xm.optimizer_step(optimizer_fn)
-                optimizer_fn.zero_grad()
-                xm.mark_step()
+                        y_pred = F.log_softmax(y_pred, dim = -1)
+    
+                    metrics_mask = masks.clone().flatten(0, 1) if not bilinear else (masks*masks.permute(0, 2, 1)).flatten()
+                    given_distr_shape = (-1, ) if not given_distr else (-1, base_n_classes)
+                    loss_val_unmasked = loss_fn(y_pred.reshape((-1, base_n_classes)).squeeze(-1), 
+                                                y_true.reshape(given_distr_shape))
+                    loss_val_unmasked = loss_val_unmasked.reshape((metrics_mask.shape[0], -1))
+                    loss_val = torch.sum(loss_val_unmasked*metrics_mask)/torch.sum(metrics_mask)
+                    prior_loss_component = unwrapped_model(model).get_prior_loss()
+                    loss_val_optim = loss_val*N_tokens + prior_loss_component
+                
+                if sent_device.type != "xla":
+                    loss_is_nan = loss_val.isnan()
+                    if loss_is_nan:
+                        if debugging:
+                            print ("\nWARNING: Loss is NaN")
+                            return debug_dict
+                        else:
+                            raise ValueError ("Loss is NaN")
+                
+                if sent_device.type in {"cuda", "cpu", "mps"}:
+                    scaler.scale(loss_val_optim).backward()
+                    if not use_sam:
+                        scaler.step(optimizer_fn)
+                    else: 
+                        scaler.unscale_(optimizer)
+                        if step == 0:
+                            optimizer.first_step()
+                        else:
+                            optimizer.second_step()
+                    scaler.update()
+                    optimizer_fn.zero_grad()
+    
+                elif sent_device.type == "xla":
+                    loss_val_optim.backward()
+                    xm.optimizer_step(optimizer_fn)
+                    optimizer_fn.zero_grad()
+                    xm.mark_step()
 
             if given_distr:
                 y_true = torch.argmax(y_true, axis = -1)
