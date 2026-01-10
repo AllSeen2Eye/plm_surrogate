@@ -1941,11 +1941,11 @@ def train_model(model, datasets, lrs, wds, reset_state, use_sam, use_module_per_
                     if not use_sam:
                         scaler.step(optimizer_fn)
                     else: 
-                        scaler.unscale_(optimizer)
+                        scaler.unscale_(optimizer_fn)
                         if step == 0:
-                            optimizer.first_step()
+                            optimizer_fn.first_step()
                         else:
-                            optimizer.second_step()
+                            optimizer_fn.second_step()
                     scaler.update()
                     optimizer_fn.zero_grad()
     
