@@ -32,7 +32,7 @@ try:
 except ModuleNotFoundError:
     xla_device_available = False
 
-from sam import SAM
+from pytorch_optimizer import SAM
 import plm_surrogate.commons as commons
 
 LOG_DIR, OUTPUT_DIR, CKPT_DIR, TRC_DIR, TMP_DIR = "./logs", "./models", "./checkpoints", "./trace", "./tmp"
