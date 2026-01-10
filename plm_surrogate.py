@@ -1846,7 +1846,7 @@ def train_model(model, datasets, lrs, wds, reset_state, use_sam, use_module_per_
     
     if sent_device.type != "xla":
         get_train_dataset = train_dataloader.dataset
-        cast_dtype = torch.float16
+        cast_dtype = torch.float32
     else:
         get_train_dataset = train_dataloader._loader.dataset
         cast_dtype = torch.bfloat16
