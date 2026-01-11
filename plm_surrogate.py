@@ -1892,6 +1892,7 @@ def train_model(model, datasets, lrs, wds, reset_state, use_sam, use_module_per_
     for epoch in range(epochs):
         cumloss, cumacc, cumcount, cumpriorloss, done_rows = 0, 0, 0, 0, 0
         if reset_state[epoch]:
+            optim_params["params"] = model.parameters()
             optimizer_fn = type(optimizer_fn)(**optim_params)
         adjust_optim(optimizer_fn, lrs[epoch], wds[epoch])
         if len(set_grad_array) == epochs:   
