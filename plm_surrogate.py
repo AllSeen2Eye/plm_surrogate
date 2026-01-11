@@ -1876,6 +1876,8 @@ def train_model(model, datasets, lrs, wds, reset_state, use_sam, use_module_per_
         optimizer_fn = torch.optim.AdamW(**optim_params)
     else:
         optim_params["base_optimizer"] = torch.optim.AdamW
+        optim_params["adaptive"] = True
+        optim_params["rho"] = 0.1
         optimizer_fn = SAM(**optim_params)
         
     epochs = min(len(lrs), len(wds), len(use_module_per_epoch), len(reset_state))
