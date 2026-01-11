@@ -1870,9 +1870,9 @@ def train_model(model, datasets, lrs, wds, reset_state, use_sam, use_module_per_
         loss_fn = nn.BCEWithLogitsLoss(reduction = "none", weight = class_weights)
     else: 
         loss_fn = nn.KLDivLoss(reduction = "none")
-
-   optim_params = dict(params = model.parameters(), lr = 0, weight_decay = 0)
-   if not use_sam:
+        
+    optim_params = dict(params = model.parameters(), lr = 0, weight_decay = 0)
+    if not use_sam:
         optimizer_fn = torch.optim.AdamW(**optim_params)
     else:
         optim_params["base_optimizer"] = torch.optim.AdamW
