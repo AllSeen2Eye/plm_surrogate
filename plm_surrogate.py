@@ -1614,7 +1614,7 @@ class GeneralizedStructureModel(nn.Module):
         new_state_dict = {}
         use_module = self.active_modules
 
-        calibration_filter = lambda name: "mu" in name if not self.calibrated else True
+        calibration_filter = lambda name: ".mu" in name if not self.calibrated else True
         use_module_filter = lambda module_name: use_module[module_name] > 1e-08
         
         for param_name, param_value in self.state_dict().items():
