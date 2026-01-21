@@ -91,16 +91,16 @@ def get_constants(aaprop_file_name, wp_file_name, n_features = 15):
 
 ### DATASET OBJECT AND FUNCTIONS
 class StructureDataset(Dataset):
-    def __init__(self, df, class_tokenizer, given_distr = False, max_len = None, precompute = False):
-        self.df = df.copy()
+    def __init__(self, data_source, class_tokenizer, given_distr = False, max_len = None, precompute = False):
+        self.data = data_source.copy()
         self.class_tokenizer = class_tokenizer
-        self.n_tokens = np.sum(df["seq"].str.len())
+        self.n_tokens = np.sum(data_source["seq"].str.len())
         self.max_len = max_len
         self.precompute = precompute
         self.given_distr = given_distr
         if precompute:
             self.x, self.y, self.mask = [], [], []
-            for idx in range(len(df)):
+            for idx in range(len(data_source)):
                 outputs = self.compute_tensor(idx)
                 self.x.append(outputs[0])
                 self.y.append(outputs[1])
@@ -110,7 +110,7 @@ class StructureDataset(Dataset):
             self.mask = torch.stack(self.mask, 0)
 
     def __len__(self):
-        return len(self.df)
+        return len(self.data)
 
     def __getitem__(self, idx):
         if not self.precompute:
@@ -121,7 +121,7 @@ class StructureDataset(Dataset):
     def compute_tensor(self, idx):
         seq_col, y_col, other_col = ["seq", "label", "other"]
 
-        patch = self.df.iloc[idx]
+        patch = self.data[idx]
         seq, label, others = patch[seq_col], patch[y_col], patch[other_col]
         seq_len = len(seq)
         if self.max_len is None:
@@ -171,7 +171,7 @@ class ClassTokenizer():
 
     def bilinear_tokenizer(self, y_input, seq_len, max_len):
         y_true = torch.zeros((max_len, max_len, self.n_dims)).squeeze(dim=-1)
-        y_input = np.fromstring(y_input)
+        y_input = np.array(y_input)
         real_len = int(y_input.shape[0]**0.5)
         y_input = y_input.reshape(real_len, real_len, self.n_dims)
         if not self.given_distr: 
