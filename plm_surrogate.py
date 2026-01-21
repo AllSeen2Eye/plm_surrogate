@@ -1331,7 +1331,14 @@ class StructureModelConfig():
         return per_epoch_args
 
     def preprocess_fn(self, dataset_files, dataset_labels = ["train", "score", "valid", "test"]):
-        full_dataset = pd.read_csv(dataset_files["main_dataset"], index_col = "Index")
+        file_format = dataset_files["main_dataset"].split(".")[-1]
+        if file_format == "csv":
+            full_dataset = pd.read_csv(dataset_files["main_dataset"], index_col = "Index")
+        elif file_format == "pkl":
+            full_dataset = pd.read_pickle(dataset_files["main_dataset"])
+            full_dataset.index.name = "Index"
+        else:
+            raise ValueError ("Incorrect file format for dataset import! Only .csv and .pkl are currently supported")
         full_dataset.index = list(map(str, full_dataset.index))
         full_dataset = full_dataset[full_dataset["seq"].str.len() < 1022]
 
