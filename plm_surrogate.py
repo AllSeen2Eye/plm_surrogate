@@ -1502,9 +1502,8 @@ class GeneralizedStructureModel(nn.Module):
             output_vec = torch.zeros((batch_size, max_length, base_n_classes)).to(device)
         latent_vec = torch.zeros((batch_size, max_length, self.hidden_state_dim)).to(device)
 
-        data_dict = {"x":x_feats[..., :23], "x_other":x_feats[..., 23:], 
-                     "masks":masks, "pos_embed":pos_embed, "class_outputs":output_vec, 
-                     "latent_outputs":latent_vec, "device":device}
+        data_dict = OrderedDict(device = device, x = x_feats[..., :23], x_other = x_feats[..., 23:], masks = masks, 
+                                pos_embed = pos_embed, class_outputs = output_vec, latent_outputs = latent_vec)
 
         execution_order.SharedVariableModule(data_dict)
         for module_order, module_name in enumerate(list(execution_order.keys())[1:]):
