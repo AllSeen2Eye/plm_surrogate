@@ -169,36 +169,37 @@ def visualize_logits(seq, model, device, to_probs = False):
     x_feats[:, 0, 21] = 1
     x_feats[0, 1:len(seq)+1, :21] = np.reshape(np.array(list(seq)), (-1, 1)) == commons.x_tokens
     x_feats[0, len(seq)+1, 22] = 1
+    
     masks = np.zeros((1, max_length, 1), dtype = np.float32)
     masks[0, 1:len(seq)+1] = 1
     debug_dict = model(torch.FloatTensor(x_feats).to(device), torch.FloatTensor(masks).to(device), return_prev_compute = True)
 
-    count_actives = 0
-    fig, ax = plt.subplots(sum(model.active_modules.values())-1, 2, figsize = (sum(model.active_modules.values())*2, 20), width_ratios = [10, 1])
-    for key in debug_dict.keys():
-        if "class_logits" in key and "SharedVariable" not in key:
-            if to_probs:
-                matrix = F.softmax(debug_dict[key], dim = -1)
-                manipulation_name = " as probabilities"
-            else:
-                matrix = F.log_softmax(debug_dict[key], dim = -1)
-                manipulation_name = " as normalized logits"
-            ax_i = ax[count_actives, 0]
-            show_matrix = matrix.cpu().detach().numpy()[0, 1:-1].T
-            percentiles = np.round(np.percentile(show_matrix, [2.5, 97.5]), 2)
-            mappable = ax_i.matshow(show_matrix, vmin = percentiles[0],
-                                    vmax = percentiles[1], cmap = "jet")
-            fig.colorbar(mappable, pad = 0.025)
-            ax_i.set_title(" ".join(key.split("_")[2:])+manipulation_name, fontsize = 7)
-            ax_i.set_xticks([])
-            ax_i.set_yticks([])
-            
-            percentiles_class = -np.percentile(show_matrix, [2.5, 50, 97.5], -1)
-            ax_distr = ax[count_actives, 1]
-            n_classes = len(percentiles_class[0])
-            ax_distr.bar(np.arange(n_classes), percentiles_class[0], color = "r", alpha = 1)
-            ax_distr.bar(np.arange(n_classes), percentiles_class[1], color = "g", alpha = 1)
-            ax_distr.bar(np.arange(n_classes), percentiles_class[2], color = "b", alpha = 1)
+    correct_key_fn = lambda key: "class_logits" in key and "SharedVariable" not in key
+    correct_keys = list(filter(correct_key_fn, debug_dict.keys()))
+    debug_dict = [(key, debug_dict[key]) for key in correct_keys]
     
-            count_actives += 1
+    fig, ax = plt.subplots(len(debug_dict), 2, figsize = (len(debug_dict)*2, 20), width_ratios = [10, 1])
+    for key, mapped_array in debug_dict:
+        if to_probs:
+            matrix = F.softmax(mapped_array, dim = -1)
+            manipulation_name = " as probabilities"
+        else:
+            matrix = F.log_softmax(mapped_array, dim = -1)
+            manipulation_name = " as normalized logits"
+        ax_i = ax[count_actives, 0]
+        show_matrix = matrix.cpu().detach().numpy()[0, 1:-1].T
+        percentiles = np.round(np.percentile(show_matrix, [2.5, 97.5]), 2)
+        mappable = ax_i.matshow(show_matrix, vmin = percentiles[0],
+                                vmax = percentiles[1], cmap = "jet")
+        fig.colorbar(mappable, pad = 0.025)
+        ax_i.set_title(" ".join(key.split("_")[2:])+manipulation_name, fontsize = 7)
+        ax_i.set_xticks([])
+        ax_i.set_yticks([])
+        
+        percentiles_class = -np.percentile(show_matrix, [2.5, 50, 97.5], -1)
+        ax_distr = ax[count_actives, 1]
+        n_classes = len(percentiles_class[0])
+        ax_distr.bar(np.arange(n_classes), percentiles_class[0], color = "r", alpha = 1)
+        ax_distr.bar(np.arange(n_classes), percentiles_class[1], color = "g", alpha = 1)
+        ax_distr.bar(np.arange(n_classes), percentiles_class[2], color = "b", alpha = 1)
     fig.subplots_adjust(wspace = -0.2, hspace = 0.5);
