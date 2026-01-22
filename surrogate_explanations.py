@@ -60,8 +60,9 @@ def visualize_shap(seq, model, tokenizer, device, full_class_str, figure_dims = 
     fig, ax = plt.subplots(n_rows, n_cols, figsize = (n_cols*8, n_rows*8))
     for class_id in range(n_classes):
         residual_shap_matrix = shap_values[..., class_id]
-        ax[class_id//n_cols, class_id%n_cols].matshow(residual_shap_matrix, vmin = min_val, vmax = max_val, cmap = "coolwarm")
-        ax[class_id//n_cols, class_id%n_cols].set_title(f"{full_class_str[class_id]} {min_val:.3f} to {max_val:.3f}")
+        ax_slice = ax[class_id//n_cols, class_id%n_cols] if n_classes > 1 else ax
+        ax_slice.matshow(residual_shap_matrix, vmin = min_val, vmax = max_val, cmap = "coolwarm")
+        ax_slice.set_title(f"{full_class_str[class_id]} {min_val:.3f} to {max_val:.3f}")
 
 def visualize_physicochemical(structure_model, feat_id, class_id, window_size = 121):
     all_pos = np.reshape(list(range(0, window_size)), (-1, 1))
@@ -120,12 +121,13 @@ def visualize_solubilitymodule(structure_model, window_size = 21, title_legend =
     jet_class = plt.get_cmap("jet", n_features)
     fig, ax = plt.subplots(n_rows, n_cols, figsize = (n_rows*8, n_cols*8))
     for j in range(hidden_state_dim): 
+        ax_slice = ax[j//n_cols, j%n_cols] if hidden_state_dim > 1 else ax
         for k in range(n_features):
-            ax[j//n_cols, j%n_cols].plot(conv_pairwise_0[..., k, j], c = jet_class(k))
-        ax[j//n_cols, j%n_cols].set_xticks(np.arange(0, window_size, 2), np.arange(0, window_size, 2) - edge_pos)
+            ax_slice.plot(conv_pairwise_0[..., k, j], c = jet_class(k))
+        ax_slice.set_xticks(np.arange(0, window_size, 2), np.arange(0, window_size, 2) - edge_pos)
         if len(title_legend) > 0:
-            ax[j//n_cols, j%n_cols].set_title(title_legend[j])
-        ax[j//n_cols, j%n_cols].grid()
+            ax_slice.set_title(title_legend[j])
+        ax_slice.grid()
     if len(legend) > 0:
         plt.legend(legend, loc = "lower center", bbox_to_anchor = [1.25, 1.2]);
 
@@ -154,14 +156,15 @@ def visualize_betweenclasscoherence(structure_model, window_size = 21, title_leg
     jet_class = plt.get_cmap("jet", hidden_state_dim)
     fig, ax = plt.subplots(n_rows, n_cols, figsize = (n_rows*8, n_cols*8))
     for j in range(hidden_state_dim): 
+        ax_slice = ax[j//n_cols, j%n_cols] if hidden_state_dim > 1 else ax
         for k in range(hidden_state_dim):
-            ax[j//n_cols, j%n_cols].plot(class_pairwise_[..., k, j], c = jet_class(k))
-        ax[j//n_cols, j%n_cols].set_xticks(np.arange(0, window_size, 2), np.arange(0, window_size, 2) - edge_pos)
+            ax_slice.plot(class_pairwise_[..., k, j], c = jet_class(k))
+        ax_slice.set_xticks(np.arange(0, window_size, 2), np.arange(0, window_size, 2) - edge_pos)
         if len(title_legend) > 0:
-            ax[j//n_cols, j%n_cols].set_title(title_legend[j])
-        ax[j//n_cols, j%n_cols].grid()
+            ax_slice.set_title(title_legend[j])
+        ax_slice.grid()
         if len(legend) > 0:
-            ax[j//n_cols, j%n_cols].legend(legend, loc = "upper left");
+            ax_slice.legend(legend, loc = "upper left");
             
 def visualize_logits(seq, model, device, to_probs = False):
     max_length = len(seq)+2
