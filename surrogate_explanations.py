@@ -182,7 +182,7 @@ def visualize_logits(seq, model, device, to_probs = False):
     debug_dict = [(key, debug_dict[key]) for key in correct_keys]
     
     fig, ax = plt.subplots(len(debug_dict), 2, figsize = (len(debug_dict)*2, 20), width_ratios = [10, 1])
-    for key, mapped_array in debug_dict:
+    for count_actives, (key, mapped_array) in enumerate(debug_dict):
         if to_probs:
             matrix = F.softmax(mapped_array, dim = -1)
             manipulation_name = " as probabilities"
