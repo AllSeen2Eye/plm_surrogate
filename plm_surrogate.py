@@ -121,7 +121,7 @@ class StructureDataset(Dataset):
     def compute_tensor(self, idx):
         seq_col, y_col, other_col = ["seq", "label", "other"]
 
-        patch = self.data[idx]
+        patch = self.data.iloc[idx]
         seq, label, others = patch[seq_col], patch[y_col], patch[other_col]
         seq_len = len(seq)
         if self.max_len is None:
