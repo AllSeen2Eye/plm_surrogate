@@ -23,34 +23,8 @@ import torch.distributed as dist
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader, SequentialSampler, RandomSampler, DistributedSampler
 
-try:
-    import torch_xla as xla
-    import torch_xla.core.xla_model as xm
-    import torch_xla.distributed.parallel_loader as pl
-    import torch_xla.distributed.xla_multiprocessing as xmp
-    xla_device_available = True
-except ModuleNotFoundError:
-    xla_device_available = False
-
 from pytorch_optimizer import SAM
 import plm_surrogate.commons as commons
-
-LOG_DIR, OUTPUT_DIR, CKPT_DIR, TRC_DIR, TMP_DIR = "./logs", "./models", "./checkpoints", "./trace", "./tmp"
-folders_to_create = [LOG_DIR, OUTPUT_DIR, CKPT_DIR, TRC_DIR, TMP_DIR]
-for select_DIR in folders_to_create:
-    if not os.path.exists(select_DIR):
-        os.mkdir(select_DIR)
-
-device = (
-    "cuda"
-    if torch.cuda.is_available()
-    else "mps"
-    if torch.backends.mps.is_available()
-    else "cpu"
-)
-device = torch.device(device)
-print(f"Using {device} device")
-scaler = torch.amp.GradScaler(device)
 
 ### DEFINE AND IMPORT CONSTANTS
 def get_constants(aaprop_file_name, wp_file_name, n_features = 15):
