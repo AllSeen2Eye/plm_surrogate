@@ -183,7 +183,7 @@ def visualize_logits(seq, model, device, to_probs = False):
     
     fig, ax = plt.subplots(len(debug_dict), 2, figsize = (len(debug_dict)*2, 20), width_ratios = [10, 1])
     for count_actives, (key, mapped_array) in enumerate(debug_dict):
-        n_classes = len(percentiles_class[0])
+        n_classes = mapped_array.shape[-1]
         if to_probs:
             activation_fn = lambda x: F.softmax(x, dim = -1) if n_classes > 1 else F.sigmoid
             manipulation_name = " as probabilities"
