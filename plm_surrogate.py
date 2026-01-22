@@ -172,7 +172,7 @@ class ClassTokenizer():
     def bilinear_tokenizer(self, y_input, seq_len, max_len):
         y_true = torch.zeros((max_len, max_len, self.n_dims)).squeeze(dim=-1)
         y_input = np.array(y_input)
-        real_len = int(y_input.shape[0]**0.5)
+        real_len = y_input.shape[0]
         y_input = y_input.reshape(real_len, real_len, self.n_dims)
         if not self.given_distr: 
             y_input_true = torch.from_numpy(y_input).to(int)
