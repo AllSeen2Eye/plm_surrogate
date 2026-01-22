@@ -26,6 +26,10 @@ from torch.utils.data import Dataset, DataLoader, SequentialSampler, RandomSampl
 from pytorch_optimizer import SAM
 import plm_surrogate.commons as commons
 
+LOG_DIR, OUTPUT_DIR, CKPT_DIR, TRC_DIR, TMP_DIR = "./logs", "./models", "./checkpoints", "./trace", "./tmp"
+init_folders([LOG_DIR, OUTPUT_DIR, CKPT_DIR, TRC_DIR, TMP_DIR])
+device, xla_device_available, scaler = return_device_objects()
+
 ### DEFINE AND IMPORT CONSTANTS
 def get_constants(aaprop_file_name, wp_file_name, n_features = 15):
     aa_data = pd.read_csv(aaprop_file_name, index_col="Name")
