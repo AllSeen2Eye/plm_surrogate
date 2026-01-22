@@ -27,8 +27,8 @@ from pytorch_optimizer import SAM
 import plm_surrogate.commons as commons
 
 LOG_DIR, OUTPUT_DIR, CKPT_DIR, TRC_DIR, TMP_DIR = "./logs", "./models", "./checkpoints", "./trace", "./tmp"
-init_folders([LOG_DIR, OUTPUT_DIR, CKPT_DIR, TRC_DIR, TMP_DIR])
-device, xla_device_available, scaler = return_device_objects()
+commons.init_folders([LOG_DIR, OUTPUT_DIR, CKPT_DIR, TRC_DIR, TMP_DIR])
+device, xla_device_available, scaler = commons.return_device_objects()
 
 ### DEFINE AND IMPORT CONSTANTS
 def get_constants(aaprop_file_name, wp_file_name, n_features = 15):
