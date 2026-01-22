@@ -183,6 +183,7 @@ def visualize_logits(seq, model, device, to_probs = False):
     
     fig, ax = plt.subplots(len(debug_dict), 2, figsize = (len(debug_dict)*2, 20), width_ratios = [10, 1])
     for count_actives, (key, mapped_array) in enumerate(debug_dict):
+        base_n_classes = mapped_array.shape[-1]
         if to_probs:
             matrix = F.softmax(mapped_array, dim = -1)
             manipulation_name = " as probabilities"
@@ -192,9 +193,12 @@ def visualize_logits(seq, model, device, to_probs = False):
         ax_i = ax[count_actives, 0]
         show_matrix = matrix.cpu().detach().numpy()[0, 1:-1].T
         percentiles = np.round(np.percentile(show_matrix, [2.5, 97.5]), 2)
-        mappable = ax_i.matshow(show_matrix, vmin = percentiles[0],
-                                vmax = percentiles[1], cmap = "jet")
-        fig.colorbar(mappable, pad = 0.025)
+        if base_n_classes > 1:
+            mappable = ax_i.matshow(show_matrix, vmin = percentiles[0],
+                                    vmax = percentiles[1], cmap = "jet")
+            fig.colorbar(mappable, pad = 0.025)
+        else:
+            ax_i.plot(show_matrix, c = "b", linestyle = "dashed")
         ax_i.set_title(" ".join(key.split("_")[2:])+manipulation_name, fontsize = 7)
         ax_i.set_xticks([])
         ax_i.set_yticks([])
