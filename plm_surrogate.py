@@ -178,7 +178,7 @@ class ClassTokenizer():
             y_input_true = torch.from_numpy(y_input).to(int)
         else: 
             y_input_true = torch.FloatTensor(y_input).softmax(-1)
-        y_true[1:seq_len+1, 1:seq_len+1] = y_input_true
+        y_true[1:seq_len+1, 1:seq_len+1] = y_input_true.squeeze(dim=-1)
         return y_true
     
     def tokenize(self, y_input, seq_len, max_len):
