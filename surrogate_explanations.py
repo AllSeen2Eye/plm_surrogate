@@ -183,29 +183,29 @@ def visualize_logits(seq, model, device, to_probs = False):
     
     fig, ax = plt.subplots(len(debug_dict), 2, figsize = (len(debug_dict)*2, 20), width_ratios = [10, 1])
     for count_actives, (key, mapped_array) in enumerate(debug_dict):
-        base_n_classes = mapped_array.shape[-1]
+        n_classes = len(percentiles_class[0])
         if to_probs:
-            matrix = F.softmax(mapped_array, dim = -1)
+            activation_fn = lambda x: F.softmax(x, dim = -1) if n_classes > 1 else F.sigmoid
             manipulation_name = " as probabilities"
         else:
-            matrix = F.log_softmax(mapped_array, dim = -1)
+            activation_fn = lambda x: F.log_softmax(x, dim = -1) if n_classes > 1 else lambda x: x
             manipulation_name = " as normalized logits"
+        matrix = activation_fn(mapped_array)
         ax_i = ax[count_actives, 0]
         show_matrix = matrix.cpu().detach().numpy()[0, 1:-1].T
         percentiles = np.round(np.percentile(show_matrix, [2.5, 97.5]), 2)
-        if base_n_classes > 1:
+        if n_classes > 1:
             mappable = ax_i.matshow(show_matrix, vmin = percentiles[0],
                                     vmax = percentiles[1], cmap = "jet")
             fig.colorbar(mappable, pad = 0.025)
         else:
-            ax_i.plot(show_matrix, c = "b", linestyle = "dashed")
+            ax_i.plot(show_matrix[0], c = "b", linestyle = "dashed")
         ax_i.set_title(" ".join(key.split("_")[2:])+manipulation_name, fontsize = 7)
         ax_i.set_xticks([])
         ax_i.set_yticks([])
         
         percentiles_class = -np.percentile(show_matrix, [2.5, 50, 97.5], -1)
         ax_distr = ax[count_actives, 1]
-        n_classes = len(percentiles_class[0])
         ax_distr.bar(np.arange(n_classes), percentiles_class[0], color = "r", alpha = 1)
         ax_distr.bar(np.arange(n_classes), percentiles_class[1], color = "g", alpha = 1)
         ax_distr.bar(np.arange(n_classes), percentiles_class[2], color = "b", alpha = 1)
