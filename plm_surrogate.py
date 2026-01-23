@@ -2012,9 +2012,8 @@ def generalized_train_fn(rank, world_size, sent_device, config_obj, debug_dict):
     debug_dict["model"] = structure_model 
     return debug_dict
 
-def train_handler(config_obj, debug_dict):
+def train_handler(config_obj, debug_dict, device_type):
     print("Train Handler is on!")
-    device_type = config_obj["training/device_type"]
     sent_device = None if device_type == "xla" else torch.device(device_type)
 
     if device_type == "cuda":
