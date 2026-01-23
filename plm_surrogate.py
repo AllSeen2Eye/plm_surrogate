@@ -19,6 +19,15 @@ from torch.nn import functional as F
 from torch.amp import autocast
 from torch.profiler import profile, ProfilerActivity, record_function
 
+try:
+    import torch_xla as xla
+    import torch_xla.core.xla_model as xm
+    import torch_xla.distributed.parallel_loader as pl
+    import torch_xla.distributed.xla_multiprocessing as xmp
+    xla_device_available = True
+except ModuleNotFoundError:
+    xla_device_available = False
+
 import torch.distributed as dist
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader, SequentialSampler, RandomSampler, DistributedSampler
