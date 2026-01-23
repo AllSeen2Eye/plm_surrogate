@@ -26,10 +26,6 @@ from torch.utils.data import Dataset, DataLoader, SequentialSampler, RandomSampl
 from pytorch_optimizer import SAM
 import plm_surrogate.commons as commons
 
-LOG_DIR, OUTPUT_DIR, CKPT_DIR, TRC_DIR, TMP_DIR = "./logs", "./models", "./checkpoints", "./trace", "./tmp"
-commons.init_folders([LOG_DIR, OUTPUT_DIR, CKPT_DIR, TRC_DIR, TMP_DIR])
-device, xla_device_available, scaler = commons.return_device_objects()
-
 ### DEFINE AND IMPORT CONSTANTS
 def get_constants(aaprop_file_name, wp_file_name, n_features = 15):
     aa_data = pd.read_csv(aaprop_file_name, index_col="Name")
@@ -247,7 +243,7 @@ class ModelParameter(nn.Module):
         bayesian = self.model_type == "mean_field"
         
         if bayesian:
-            non_shifted = torch.randn(shape).to(device)
+            non_shifted = torch.randn(shape)
             log_sigma = self.log_sigma
             sigma = F.softplus(log_sigma)
             sample_w = non_shifted*sigma + self.mu
@@ -271,7 +267,6 @@ def unpack_parameter_list(parameter_list):
     return local_params
 
 def gaussian_kernel(pos_window, kernel_amplitude, kernel_mean, inv_kernel_var, kernel_period, kernel_phase, simplify_kernel = False):
-    device_type = pos_window.device.type
     local_pos_window = pos_window.clone()
     if simplify_kernel:
         edge_size = pos_window.shape[0]//2
@@ -375,14 +370,15 @@ def diagnosing_NaN(model_obj, error_dict):
     for key, val in model_obj.state_dict().items():
         print(key, torch.max(torch.abs(val)).item(), torch.std(val).item())
 
-def call_profiler(model, dataset_profiler, profiler_options):
+def call_profiler(model, dataset_profiler, profiler_options, trc_dir):
     with profile(**profiler_options) as profiler_context:
             with record_function("model_inference"):
                 model.inference_model(dataset_profiler)
-    sort_by = f"{device.type.lower()}_time_total"
-    with open(f"{TRC_DIR}/model_profile.log", "w") as profiler_logs:
+    device_name = next(model.parameters()).device.type.lower()
+    sort_by = f"{device_name}_time_total"
+    with open(f"{trc_dir}/model_profile.log", "w") as profiler_logs:
         profiler_logs.write(profiler_context.key_averages().table(sort_by=sort_by))
-    profiler_context.export_chrome_trace(f"{TRC_DIR}/model_trace.json")
+    profiler_context.export_chrome_trace(f"{trc_dir}/model_trace.json")
     
 
 ### MODEL MODULE OBJECTS
@@ -1359,9 +1355,11 @@ class StructureModelConfig():
         
         return all_datasets
         
-    def config_training_init(self, sent_device, num_workers):
+    def config_training_init(self, num_workers):
         training_init_dict = copy.deepcopy(self.config["training"])
         batch_size = training_init_dict.pop("batch_size")
+        sent_device_type = training_init_dict.pop("device")
+        sent_device = torch.device(sent_device_type)
         train_obj, scoring_train_obj, valid_obj, test_obj = self.config_dataset_init()
         
         train_dataloader = create_dataloader(train_obj, batch_size, RandomSampler(train_obj), num_workers = num_workers, dataloader_name = "Train")
@@ -1369,7 +1367,7 @@ class StructureModelConfig():
         valid_dataloader = create_dataloader(valid_obj, batch_size, SequentialSampler(valid_obj), dataloader_name = "Valid")
         test_dataloader = create_dataloader(test_obj, batch_size, SequentialSampler(test_obj), dataloader_name = "Test")
     
-        if sent_device.type == "xla":
+        if sent_device_type == "xla":
             train_dataloader = pl.MpDeviceLoader(train_dataloader, sent_device)
             scoring_train_dataloader = pl.MpDeviceLoader(scoring_train_dataloader, sent_device)
             valid_dataloader = pl.MpDeviceLoader(valid_dataloader, sent_device)
@@ -1831,9 +1829,11 @@ def train_model(model, datasets, lrs, wds, reset_state, use_sam, use_module_per_
     if sent_device.type != "xla":
         get_train_dataset = train_dataloader.dataset
         cast_dtype = torch.float16
+        scaler = torch.amp.GradScaler(sent_device)
     else:
         get_train_dataset = train_dataloader._loader.dataset
         cast_dtype = torch.bfloat16
+        scaler = torch.amp.GradScaler(torch.device("cpu"))
     if use_sam:
         cast_dtype = torch.float32 
 
@@ -1869,7 +1869,7 @@ def train_model(model, datasets, lrs, wds, reset_state, use_sam, use_module_per_
         print_interm = epochs+1
     ckpt_frequency = ckpt_config.get("ckpt_frequency", epochs+1)
     ckpt_filename = ckpt_config.get("ckpt_filename", unwrapped_model(model).model_name)
-    ckpt_filename = f"{CKPT_DIR}/{ckpt_filename}_epoch.pt"
+    ckpt_filename = f"{folder_options['ckpt_dir']}/{ckpt_filename}_epoch.pt"
     debugging = type(debug_dict) == dict
     
     if score_beginning:
@@ -1972,7 +1972,7 @@ def train_model(model, datasets, lrs, wds, reset_state, use_sam, use_module_per_
             print("\n")
             unwrapped_model(model).score_model(scoring_train_dataloader, valid_dataloader, test_dataloader)
             if len(profiler_options) > 0 and (epoch+1) == print_interm:
-                call_profiler(unwrapped_model(model), test_dataloader, profiler_options)
+                call_profiler(unwrapped_model(model), test_dataloader, profiler_options, folder_options['trc_dir'])
         
         if ((epoch+1) % ckpt_frequency) == 0:
             epoch_ckpt_name = ckpt_filename.replace("epoch", str(epoch+1))
@@ -1996,7 +1996,9 @@ def generalized_train_fn(rank, world_size, sent_device, config_obj, debug_dict):
         structure_model = nn.DataParallel(structure_model)
 
     training_init_dict = config_obj.config_training_init(sent_device, world_size)
-    output_name = config_obj["training/output_name"]
+    output_dir = training_init_dict["folder_options"]["output_dir"]
+    model_fname = config_obj["training/output_name"]
+    output_name = f'{output_dir}/{model_fname}'
     json_output = ".".join(output_name.split(".")[:-1] + ["json"])
     config_obj.to_json(json_output)
     debug_dict = train_model(model = structure_model, sent_device = sent_device, 
@@ -2014,8 +2016,8 @@ def generalized_train_fn(rank, world_size, sent_device, config_obj, debug_dict):
 
 def train_handler(config_obj, debug_dict):
     print("Train Handler is on!")
-    sent_device = None if xla_device_available else device
-    device_type = "xla" if xla_device_available else sent_device.type
+    device_type = config_obj["training/device"]
+    sent_device = None if device_type == "xla" else torch.device(device_type)
 
     if device_type == "cuda":
         world_size = torch.cuda.device_count()
