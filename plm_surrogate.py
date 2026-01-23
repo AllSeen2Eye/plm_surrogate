@@ -1819,9 +1819,9 @@ class GeneralizedStructureModel(nn.Module):
 
 ### TRAIN HANDLING
 @interruption_handler
-def train_model(model, datasets, lrs, wds, reset_state, use_sam, use_module_per_epoch, set_grad_array = [], 
-                sent_device = torch.device("cpu"), class_weights = None, score_beginning = True,
-                print_interm = False, ckpt_config = {}, profiler_options = {}, debug_dict = None, rank = 0):
+def train_model(model, datasets, lrs, wds, reset_state, use_sam, use_module_per_epoch, set_grad_array = [], sent_device = torch.device("cpu"), 
+                class_weights = None, score_beginning = True, print_interm = False, ckpt_config = {}, profiler_options = {}, 
+                folder_options = {"ckpt_dir":"./ckpt", "trc_dir":"./trc"}, debug_dict = None, rank = 0):
     train_dataloader, scoring_train_dataloader, valid_dataloader, test_dataloader = datasets
     
     if sent_device.type != "xla":
