@@ -1,8 +1,10 @@
 import os
 import requests 
+from tqdm.auto import tqdm
 
-import torch
 import numpy as np
+import pandas as pd
+import mdtraj as md
 
 def init_folders(folders_to_create):
     for select_DIR in folders_to_create:
