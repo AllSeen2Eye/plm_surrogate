@@ -1355,11 +1355,9 @@ class StructureModelConfig():
         
         return all_datasets
         
-    def config_training_init(self, num_workers):
+    def config_training_init(self, sent_device, num_workers):
         training_init_dict = copy.deepcopy(self.config["training"])
         batch_size = training_init_dict.pop("batch_size")
-        sent_device_type = training_init_dict.pop("device")
-        sent_device = torch.device(sent_device_type)
         train_obj, scoring_train_obj, valid_obj, test_obj = self.config_dataset_init()
         
         train_dataloader = create_dataloader(train_obj, batch_size, RandomSampler(train_obj), num_workers = num_workers, dataloader_name = "Train")
@@ -1367,7 +1365,7 @@ class StructureModelConfig():
         valid_dataloader = create_dataloader(valid_obj, batch_size, SequentialSampler(valid_obj), dataloader_name = "Valid")
         test_dataloader = create_dataloader(test_obj, batch_size, SequentialSampler(test_obj), dataloader_name = "Test")
     
-        if sent_device_type == "xla":
+        if sent_device.type == "xla":
             train_dataloader = pl.MpDeviceLoader(train_dataloader, sent_device)
             scoring_train_dataloader = pl.MpDeviceLoader(scoring_train_dataloader, sent_device)
             valid_dataloader = pl.MpDeviceLoader(valid_dataloader, sent_device)
@@ -2016,7 +2014,7 @@ def generalized_train_fn(rank, world_size, sent_device, config_obj, debug_dict):
 
 def train_handler(config_obj, debug_dict):
     print("Train Handler is on!")
-    device_type = config_obj["training/device"]
+    device_type = config_obj["training/device_type"]
     sent_device = None if device_type == "xla" else torch.device(device_type)
 
     if device_type == "cuda":
