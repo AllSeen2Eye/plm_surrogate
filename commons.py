@@ -34,8 +34,8 @@ def unsupervised_tokenizer(seqs, device, split_token = ""):
     
     tensor_tuple = [tokenize_aminoacid_sequence(seq, [], max_len) for seq in real_seqs]
     x_feats, masks = zip(*tensor_tuple)
-    x_feats = pad_sequence(x_feats, batch_first=True, padding_value=0)
-    masks = pad_sequence(masks, batch_first=True, padding_value=0)
+    x_feats = pad_sequence(x_feats, batch_first=True, padding_value=0).to(device)
+    masks = pad_sequence(masks, batch_first=True, padding_value=0).to(device)
     return x_feats, masks
 
 def get_constants(aaprop_file_name, wp_file_name, n_features = 15):
