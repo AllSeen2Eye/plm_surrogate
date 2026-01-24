@@ -39,7 +39,7 @@ class StructureDataset(Dataset):
         patch = self.data_source.iloc[idx]
         seq, label, others = patch[seq_col], patch[y_col], patch[other_col]
         if self.max_len is None:
-            max_len = seq_len+2
+            max_len = len(seq)+2
         else:
             max_len = self.max_len+2
 
