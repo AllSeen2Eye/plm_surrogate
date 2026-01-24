@@ -27,8 +27,8 @@ def tokenize_aminoacid_sequence(seq, others, max_len):
     masks[1:seq_len+1] = 1
     return x_feats, masks
 
-def unsupervised_tokenizer(seqs, device):
-    real_seqs = [seq.split(" ") for seq in seqs]
+def unsupervised_tokenizer(seqs, device, split_token = ""):
+    real_seqs = [seq.split(split_token) for seq in seqs]
     seq_size = max(list(map(len, real_seqs)))
     max_len = seq_size+2
     
