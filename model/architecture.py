@@ -1026,7 +1026,7 @@ class GeneralizedStructureModel(nn.Module):
     def call_model(self, x_feats, masks, return_logits = True, return_prev_compute = False):
         return self.forward(x_feats, masks, return_logits, return_prev_compute)
 
-    def inference_model(self, input_data, supervised = True, return_logits = False, 
+    def inference_model(self, input_data, return_logits = False, 
                         enable_grad = False, batch_fn = None, use_tqdm = True):
         base_n_classes = self.n_classes
         if enable_grad:
@@ -1043,6 +1043,7 @@ class GeneralizedStructureModel(nn.Module):
 
             prog_datalist = tqdm(input_data) if use_tqdm else input_data
             for input_batch in prog_datalist:
+                supervised = len(input_batch) > 2
                 if supervised:
                     x_feats, y_true, masks = input_batch
                 else:
