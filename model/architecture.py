@@ -15,11 +15,9 @@ from torch.nn import functional as F
 from torch.profiler import profile, ProfilerActivity, record_function
 
 try:
-    import torch_xla as xla
     import torch_xla.core.xla_model as xm
-    xla_device_available = True
 except ModuleNotFoundError:
-    xla_device_available = False
+    pass
 
 import plm_surrogate.commons as commons
 
