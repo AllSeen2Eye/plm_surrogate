@@ -1064,7 +1064,7 @@ class GeneralizedStructureModel(nn.Module):
                 real_mask = masks if not self.bilinear else masks*masks.permute(0, 2, 1)
                 masks_count.append(real_mask.reshape(-1, ))
                 if supervised:
-                    y_trues.append(y_true.reshape(-1, 1))
+                    y_trues.append(y_true.to(device).reshape(-1, 1))
                 
                 if device_type == "xla":
                     xm.mark_step()
