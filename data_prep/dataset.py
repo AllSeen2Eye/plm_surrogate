@@ -91,21 +91,28 @@ class ClassTokenizer():
             return self.bilinear_tokenizer(y_input, seq_len, max_len)
         else:
             return self.sequence_tokenizer(y_input, seq_len, max_len)
-            
-    def collate_fn(self, tensor_tuple):
-        x_feats, y_true, masks = zip(*tensor_tuple)
-        x_feats = pad_sequence(x_feats, batch_first=True, padding_value=0)
-        masks = pad_sequence(masks, batch_first=True, padding_value=0)
-            
-        if self.bilinear:
+
+def collate_fn(tensor_tuple, bilinear):
+    outputs = zip(*tensor_tuple)
+    supervised = len(outputs) > 2
+    if supervised:
+        x_feats, y_true, masks = outputs
+    else:
+        x_feats, masks = outputs
+    x_feats = pad_sequence(x_feats, batch_first=True, padding_value=0)
+    masks = pad_sequence(masks, batch_first=True, padding_value=0)
+
+    if supervised:
+        if bilinear:
             lenghts = [y_.shape[0] for y_ in y_true]
             pads = [max(lengths)-giv_len for giv_len in lengths]
             pads = [(0, 0, 0, pad_size, 0, pad_size) for pad_size in pads]
             y_true = torch.stack([F.pad(y_, p_, "constant", 0) for (y_, p_) in zip(y_true, pads)], 0)
         else:
             y_true = pad_sequence(y_true, batch_first=True, padding_value=0)
-                
-        return (x_feats, y_true, masks)
+        return x_feats, y_true, masks
+        
+    return x_feats, masks
 
 def create_dataset(dataset, tokenizer, sampler_fn = SequentialSampler, given_distr = False):
     dataset_obj = StructureDataset(dataset, tokenizer, given_distr = given_distr)
@@ -114,8 +121,10 @@ def create_dataset(dataset, tokenizer, sampler_fn = SequentialSampler, given_dis
     
 def create_dataloader(dataset_obj, batch_size, sampler = None, 
                       num_workers = 0, dataloader_name = "Dataset"):
+    bilinear = dataset_obj.class_tokenizer.bilinear if dataset_obj.class_tokenizer is not None else False
+    local_collate = lambda x: collate_fn(x, bilinear)
     dataloader = DataLoader(dataset_obj, batch_size=batch_size, sampler=sampler,
-                            collate_fn=dataset_obj.class_tokenizer.collate_fn, num_workers = num_workers)
+                            collate_fn=local_collate, num_workers = num_workers)
     dataloader.name = dataloader_name
     return dataloader
 
