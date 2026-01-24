@@ -18,7 +18,7 @@ def get_secondary_from_pdb(pdb_id_list, save_dir, use_chain_id = True):
         pdb_code, chain_id = dict_item
         
         try:
-            traj = md.load(f"{save_dir}/{pdb_code}.pdb")
+            traj = md.load(f"{save_dir}/{dict_item}.pdb")
             if use_chain_id:
                 slice_chain = np.argwhere([atom.residue.chain.chain_id == chain_id[0] for atom in list(traj.topology.atoms)])[:, 0]
                 traj = traj.atom_slice(slice_chain)
