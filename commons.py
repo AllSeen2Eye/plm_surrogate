@@ -7,6 +7,9 @@ import pandas as pd
 from sklearn.decomposition import PCA
 from torch.nn.utils.rnn import pad_sequence
 
+aa_alphabet = "ACDEFGHIKLMNPQRSTVWYX"
+x_tokens = np.reshape(np.array(list(aa_alphabet)), (1, -1))
+
 def tokenize_aminoacid_sequence(seq, others, max_len):
     other_feats = others.shape[-1] if len(others) > 0 else 0
     x_feats = torch.zeros((max_len, 23+other_feats))
@@ -16,7 +19,7 @@ def tokenize_aminoacid_sequence(seq, others, max_len):
     x_feats[0, 21] = 1
     x_feats[seq_len+1, 22] = 1
     
-    x_feats[1:seq_len+1, :21] = torch.from_numpy(np.reshape(np.array(list(seq)), (-1, 1)) == commons.x_tokens).to(float)
+    x_feats[1:seq_len+1, :21] = torch.from_numpy(np.reshape(np.array(list(seq)), (-1, 1)) == x_tokens).to(float)
     if other_feats > 0:
         x_feats[1:seq_len+1, 23:] = torch.from_numpy(others).to(float)
     masks[1:seq_len+1] = 1
@@ -71,6 +74,3 @@ def init_folders(folders_to_create):
     for select_DIR in folders_to_create:
         if not os.path.exists(select_DIR):
             os.mkdir(select_DIR)
-
-aa_alphabet = "ACDEFGHIKLMNPQRSTVWYX"
-x_tokens = np.reshape(np.array(list(aa_alphabet)), (1, -1))
