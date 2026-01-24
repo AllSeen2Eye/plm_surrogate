@@ -1045,7 +1045,7 @@ class GeneralizedStructureModel(nn.Module):
             for input_batch in prog_datalist:
                 supervised = len(input_batch) > 2
                 if supervised:
-                    x_feats, masks, y_true = input_batch
+                    x_feats, y_true, masks = input_batch
                 else:
                     x_feats, masks = input_batch
                 x_feats, masks = x_feats.to(device), masks.to(device)
