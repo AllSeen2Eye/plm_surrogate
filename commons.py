@@ -19,8 +19,7 @@ def tokenize_aminoacid_sequence(seq, others, max_len):
     x_feats[0, 21] = 1
     x_feats[seq_len+1, 22] = 1
 
-    if type(seq) != list:
-        seq = list(seq)
+    seq = list(map(lambda x: x if x in list(aa_alphabet) else "X", seq))
     x_feats[1:seq_len+1, :21] = torch.from_numpy(np.reshape(np.array(seq), (-1, 1)) == x_tokens).to(float)
     if other_feats > 0:
         x_feats[1:seq_len+1, 23:] = torch.from_numpy(others).to(float)
