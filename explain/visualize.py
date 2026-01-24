@@ -11,25 +11,6 @@ esm_tokenizer = AutoTokenizer.from_pretrained(checkpoint_str)
 
 import plm_surrogate.commons as commons
 
-def tokenizer_mine(seqs, device):
-    seq_size = max([len(seq.split(" ")) for seq in seqs])
-    max_len = seq_size+2
-    
-    x_feats = torch.zeros((len(seqs), max_len, 23)).to(device)
-    x_feats[:, 0, 21] = 1
-    masks = torch.zeros((len(seqs), max_len, 1)).to(device)
-    for i, seq in enumerate(seqs):
-        seq = [aa if aa in list(commons.aa_alphabet) else "X" for aa in seq.split(" ")]
-        x_feats[i, 1:seq_size+1, :21] = torch.FloatTensor(np.reshape(np.array(seq), (-1, 1)) == commons.x_tokens)
-        x_feats[i, seq_size+1, 22] = 1
-        masks[i, 1:seq_size+1] = 1
-    return x_feats, masks
-
-def get_embeddings(model, tokenizer_mine, device, inp):
-    x_feats, masks = tokenizer_mine(inp, device)
-    results = model(x_feats, masks)
-    return results
-
 def factorize(number):
     candidate_factors, actual_factors = range(1, number+1), []
     for factor in candidate_factors:
@@ -40,7 +21,12 @@ def factorize(number):
     closest_0 = closest_1 - int(len(actual_factors) % 2 == 0)
     return actual_factors[closest_1], actual_factors[closest_0]
 
-def visualize_shap(seq, model, tokenizer, device, full_class_str, figure_dims = ()):
+def get_embeddings(model, device, inp):
+    x_feats, masks = commons.unsupervised_tokenizer(inp, device)
+    results = model(x_feats, masks)
+    return results
+
+def visualize_shap(seq, model, device, full_class_str, figure_dims = ()):
     n_classes = len(full_class_str) 
     n_classes = n_classes if n_classes > 2 else 1
     if len(figure_dims) < 2:
@@ -50,7 +36,7 @@ def visualize_shap(seq, model, tokenizer, device, full_class_str, figure_dims = 
     x_ =  [" ".join(list(seq))]
     shap_values = np.zeros((len(x_[0].split(" ")), len(x_[0].split(" ")), n_classes))
     for class_id in range(0, n_classes):
-        explainer = shap.Explainer(lambda inp: get_embeddings(model, tokenizer, device, inp)[..., class_id], esm_tokenizer)
+        explainer = shap.Explainer(lambda inp: get_embeddings(model, device, inp)[..., class_id], esm_tokenizer)
         shap_values[..., class_id] = explainer(x_, fixed_context=1).values[0, 1:-1, 1:-1].T
     
     min_val, max_val = np.percentile(shap_values, [5, 95])
@@ -168,13 +154,7 @@ def visualize_betweenclasscoherence(structure_model, window_size = 21, title_leg
             
 def visualize_logits(seq, model, device, to_probs = False):
     max_length = len(seq)+2
-    x_feats = np.zeros((1, max_length, 23), dtype = np.float32)
-    x_feats[:, 0, 21] = 1
-    x_feats[0, 1:len(seq)+1, :21] = np.reshape(np.array(list(seq)), (-1, 1)) == commons.x_tokens
-    x_feats[0, len(seq)+1, 22] = 1
-    
-    masks = np.zeros((1, max_length, 1), dtype = np.float32)
-    masks[0, 1:len(seq)+1] = 1
+    x_feats, masks = commons.tokenize_aminoacid_sequence(seq, [], max_length)
     debug_dict = model(torch.FloatTensor(x_feats).to(device), torch.FloatTensor(masks).to(device), return_prev_compute = True)
 
     correct_key_fn = lambda key: "class_logits" in key and "SharedVariable" not in key
@@ -197,7 +177,6 @@ def visualize_logits(seq, model, device, to_probs = False):
         percentiles = np.round(np.percentile(show_matrix, [2.5, 97.5]), 2)
 
         ax_i = ax[count_actives, 0] if n_cols > 1 else ax[count_actives]
-        ax_i.set_xticks([])
         if n_classes > 1:
             mappable = ax_i.matshow(show_matrix, vmin = percentiles[0],
                                     vmax = percentiles[1], cmap = "jet")
@@ -206,6 +185,7 @@ def visualize_logits(seq, model, device, to_probs = False):
         else:
             ax_i.plot(show_matrix[0], c = "b", linestyle = "dashed")
             ax_i.grid()
+        ax_i.set_xticks([])
         ax_i.set_title(" ".join(key.split("_")[2:])+manipulation_name, fontsize = 7)
 
         if n_classes > 1:
