@@ -12,14 +12,15 @@ def load_files_from_pdb(pdb_id_list, save_dir):
         with open(f"{save_dir}/{pdb_code}.pdb", "w") as pdb_file_pointer:
             pdb_file_pointer.write(pdb_data)
 
-def get_secondary_from_pdb(pdb_id_list, save_dir):
+def get_secondary_from_pdb(pdb_id_list, save_dir, use_chain_id = True):
     dataset_dict, real_idx = {}, []
     for dict_item in pdb_id_list:
         pdb_code, chain_id = dict_item
         try:
             traj = md.load(f"{save_dir}/{pdb_code}.pdb")
-            slice_chain = np.argwhere([atom.residue.chain.chain_id == chain_id for atom in list(traj.topology.atoms)])[:, 0]
-            traj = traj.atom_slice(slice_chain)
+            slice_chain = np.argwhere([atom.residue.chain.chain_id == chain_id[0] for atom in list(traj.topology.atoms)])[:, 0]
+            if use_chain_id:
+                traj = traj.atom_slice(slice_chain)
             traj = traj.atom_slice(traj.topology.select("protein"))
             dssp_list = md.compute_dssp(traj, simplified=False)[0].tolist()
             if "NA" in dssp_list:
