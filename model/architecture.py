@@ -1025,8 +1025,9 @@ class GeneralizedStructureModel(nn.Module):
 
     def call_model(self, x_feats, masks, return_logits = True, return_prev_compute = False):
         return self.forward(x_feats, masks, return_logits, return_prev_compute)
-        
-    def inference_model(self, dataloader, return_logits = False, enable_grad = False, batch_fn = None):
+
+    def inference_model(self, input_data, supervised = True, return_logits = False, 
+                        enable_grad = False, batch_fn = None, use_tqdm = True):
         base_n_classes = self.n_classes
         if enable_grad:
             grad_context = torch.set_grad_enabled(True)
@@ -1039,10 +1040,14 @@ class GeneralizedStructureModel(nn.Module):
 
             n_dims = base_n_classes if return_logits else 1
             predictions, y_trues, masks_count = [], [], []
-            
-            for (x_feats, y_true, masks) in tqdm(dataloader):
-                    
-                x_feats, y_true, masks = x_feats.to(device), y_true.to(device), masks.to(device)
+
+            prog_datalist = tqdm(input_data) if use_tqdm else input_data
+            for input_batch in prog_datalist:
+                if supervised:
+                    x_feats, y_true, masks = input_batch
+                else:
+                    x_feats, masks = input_batch
+                x_feats, masks = x_feats.to(device), masks.to(device)
                 y_pred = self(x_feats, masks, return_logits = return_logits)
                 
                 if batch_fn is not None:
@@ -1053,19 +1058,25 @@ class GeneralizedStructureModel(nn.Module):
                     select_parts_pred = torch.argmax(select_parts_pred, dim = -1, keepdim = True)
                 elif not return_logits and base_n_classes == 1:
                     select_parts_pred = (select_parts_pred > 0.5).to(int)
+                    
                 predictions.append(select_parts_pred)
-                y_trues.append(y_true.reshape(-1, 1))
                 real_mask = masks if not self.bilinear else masks*masks.permute(0, 2, 1)
                 masks_count.append(real_mask.reshape(-1, ))
-
+                if supervised:
+                    y_trues.append(y_true.reshape(-1, 1))
+                
                 if device_type == "xla":
                     xm.mark_step()
 
-            predictions, y_trues = torch.cat(predictions, 0), torch.cat(y_trues, 0)
+            predictions = torch.cat(predictions, 0), 
             masks_count = torch.cat(masks_count, 0)
             predictions = predictions[masks_count == 1].cpu().detach().numpy()
-            y_trues = y_trues[masks_count == 1].cpu().detach().numpy()
-            return predictions, y_trues
+            
+            if supervised:
+                y_trues = torch.cat(y_trues, 0)
+                y_trues = y_trues[masks_count == 1].cpu().detach().numpy()
+                return predictions, y_trues
+            return predictions
       
     def score_model(self, *dataloaders):
         model_name = self.model_name
