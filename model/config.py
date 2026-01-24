@@ -10,7 +10,7 @@ try:
     import torch_xla.distributed.parallel_loader as pl
 except ModuleNotFoundError:
     pass     
-from plm_surrogate.models.architecture import GeneralizedStructureModel
+from plm_surrogate.model.architecture import GeneralizedStructureModel
 from plm_surrogate.data_prep.dataset import StructureDataset, ClassTokenizer, create_dataloader
 
 class StructureModelConfig():
