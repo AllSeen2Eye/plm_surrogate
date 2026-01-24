@@ -3,12 +3,6 @@ import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
 
-try:
-    import torch_xla as xla
-    xla_device_available = True
-except ModuleNotFoundError:
-    xla_device_available = False
-
 def get_constants(aaprop_file_name, wp_file_name, n_features = 15):
     aa_data = pd.read_csv(aaprop_file_name, index_col="Name")
 
