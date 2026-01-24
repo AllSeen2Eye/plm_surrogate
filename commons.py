@@ -1,5 +1,7 @@
 import os
 import numpy as np
+import pandas as pd
+from sklearn.decomposition import PCA
 
 def get_constants(aaprop_file_name, wp_file_name, n_features = 15):
     aa_data = pd.read_csv(aaprop_file_name, index_col="Name")
