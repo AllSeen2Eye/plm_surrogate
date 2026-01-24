@@ -1,0 +1,141 @@
+### IMPORTS
+import numpy as np
+import torch
+from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import Dataset, DataLoader, SequentialSampler
+import plm_surrogate.commons as commons
+
+
+class StructureDataset(Dataset):
+    def __init__(self, data_source, class_tokenizer, given_distr = False, max_len = None, precompute = False):
+        self.data_source = data_source.copy()
+        self.class_tokenizer = class_tokenizer
+        self.n_tokens = np.sum(data_source["seq"].str.len())
+        self.max_len = max_len
+        self.precompute = precompute
+        self.given_distr = given_distr
+        if precompute:
+            self.x, self.y, self.mask = [], [], []
+            for idx in range(len(data_source)):
+                outputs = self.compute_tensor(idx)
+                self.x.append(outputs[0])
+                self.y.append(outputs[1])
+                self.mask.append(outputs[2])
+            self.x = torch.stack(self.x, 0)
+            self.y = torch.stack(self.y, 0)
+            self.mask = torch.stack(self.mask, 0)
+
+    def __len__(self):
+        return len(self.data_source)
+
+    def __getitem__(self, idx):
+        if not self.precompute:
+            return self.compute_tensor(idx)
+        else:
+            return (self.x[idx], self.y[idx], self.mask[idx])
+
+    def compute_tensor(self, idx):
+        seq_col, y_col, other_col = ["seq", "label", "other"]
+
+        patch = self.data_source.iloc[idx]
+        seq, label, others = patch[seq_col], patch[y_col], patch[other_col]
+        if self.max_len is None:
+            max_len = seq_len+2
+        else:
+            max_len = self.max_len+2
+
+        x_feats, masks = tokenize_aminoacid_sequence(seq, others, max_len)
+        y_true = self.class_tokenizer.tokenize(label, len(seq), max_len)        
+        return (x_feats, y_true, masks)
+
+class ClassTokenizer():
+    def __init__(self, full_class_str, y_tokens, given_distr, 
+                 bilinear = False, name = "Tokenizer"):
+        self.full_class_str = full_class_str
+        self.y_tokens = y_tokens
+        self.given_distr = given_distr
+        self.bilinear = bilinear
+        self.n_dims = np.prod(y_tokens.shape) if given_distr else 1
+        self.name = name
+        
+    def sequence_tokenizer(self, y_input, seq_len, max_len):
+        y_true = torch.zeros((max_len, self.n_dims)).squeeze(dim=-1)
+        if not self.given_distr: 
+            if type(y_input) != str: 
+                argmaxed_y = np.argmax(y_input, -1).tolist()
+                y_input_list = list(map(lambda y:self.full_class_str[y], argmaxed_y))
+                y_input = "".join(y_input_list) 
+            y_onehot = np.reshape(np.array(list(y_input)), (-1, 1)) == self.y_tokens
+            decide_label = np.argmax(y_onehot, -1) 
+            y_input_true = torch.from_numpy(decide_label).to(int)
+        else: 
+            y_input_true = torch.FloatTensor(y_input).softmax(-1)
+        y_true[1:seq_len+1] = y_input_true
+        return y_true
+
+    def bilinear_tokenizer(self, y_input, seq_len, max_len):
+        y_true = torch.zeros((max_len, max_len, self.n_dims)).squeeze(dim=-1)
+        y_input = np.array(y_input)
+        real_len = y_input.shape[0]
+        y_input = y_input.reshape(real_len, real_len, self.n_dims)
+        if not self.given_distr: 
+            y_input_true = torch.from_numpy(y_input).to(int)
+        else: 
+            y_input_true = torch.FloatTensor(y_input).softmax(-1)
+        y_true[1:seq_len+1, 1:seq_len+1] = y_input_true.squeeze(dim=-1)
+        return y_true
+    
+    def tokenize(self, y_input, seq_len, max_len):
+        if self.bilinear:
+            return self.bilinear_tokenizer(y_input, seq_len, max_len)
+        else:
+            return self.sequence_tokenizer(y_input, seq_len, max_len)
+            
+    def collate_fn(self, tensor_tuple):
+        x_feats, y_true, masks = zip(*tensor_tuple)
+        x_feats = pad_sequence(x_feats, batch_first=True, padding_value=0)
+        masks = pad_sequence(masks, batch_first=True, padding_value=0)
+            
+        if self.bilinear:
+            lenghts = [y_.shape[0] for y_ in y_true]
+            pads = [max(lengths)-giv_len for giv_len in lengths]
+            pads = [(0, 0, 0, pad_size, 0, pad_size) for pad_size in pads]
+            y_true = torch.stack([F.pad(y_, p_, "constant", 0) for (y_, p_) in zip(y_true, pads)], 0)
+        else:
+            y_true = pad_sequence(y_true, batch_first=True, padding_value=0)
+                
+        return (x_feats, y_true, masks)
+
+def tokenize_aminoacid_sequence(seq, others, max_len):
+    other_feats = others.shape[-1] if len(others) > 0 else 0
+    x_feats = torch.zeros((max_len, 23+other_feats))
+    masks = torch.zeros((max_len, 1))
+    
+    seq_len = len(seq)
+    x_feats[0, 21] = 1
+    x_feats[seq_len+1, 22] = 1
+    
+    x_feats[1:seq_len+1, :21] = torch.from_numpy(np.reshape(np.array(list(seq)), (-1, 1)) == commons.x_tokens).to(float)
+    if other_feats > 0:
+        x_feats[1:seq_len+1, 23:] = torch.from_numpy(others).to(float)
+    masks[1:seq_len+1] = 1
+    return x_feats, masks
+
+def create_dataset(dataset, tokenizer, sampler_fn = SequentialSampler, given_distr = False):
+    dataset_obj = StructureDataset(dataset, tokenizer, given_distr = given_distr)
+    sampler = sampler_fn(dataset_obj)
+    return dataset_obj, sampler
+    
+def create_dataloader(dataset_obj, batch_size, sampler = None, 
+                      num_workers = 0, dataloader_name = "Dataset"):
+    dataloader = DataLoader(dataset_obj, batch_size=batch_size, sampler=sampler,
+                            collate_fn=dataset_obj.class_tokenizer.collate_fn, num_workers = num_workers)
+    dataloader.name = dataloader_name
+    return dataloader
+
+def prepare_data(dataset, tokenizer, batch_size, given_distr = False, 
+                 sampler_fn = SequentialSampler, num_workers = 0,
+                 dataloader_name = "Dataset"):
+    dataset_obj, sampler = create_dataset(dataset, tokenizer, sampler_fn, given_distr)
+    dataloader = create_dataloader(dataset_obj, batch_size, sampler, num_workers, dataloader_name)
+    return dataloader
