@@ -21,8 +21,8 @@ def factorize(number):
     closest_0 = closest_1 - int(len(actual_factors) % 2 == 0)
     return actual_factors[closest_1], actual_factors[closest_0]
 
-def get_embeddings(model, device, inp):
-    x_feats, masks = commons.unsupervised_tokenizer(inp, device)
+def shap_embeddings(model, device, inp, split_token = " "):
+    x_feats, masks = commons.unsupervised_tokenizer(inp, device, split_token)
     results = model(x_feats, masks)
     return results
 
@@ -36,7 +36,7 @@ def visualize_shap(seq, model, device, full_class_str, figure_dims = ()):
     x_ =  [" ".join(list(seq))]
     shap_values = np.zeros((len(x_[0].split(" ")), len(x_[0].split(" ")), n_classes))
     for class_id in range(0, n_classes):
-        explainer = shap.Explainer(lambda inp: get_embeddings(model, device, inp)[..., class_id], esm_tokenizer)
+        explainer = shap.Explainer(lambda inp: shap_embeddings(model, device, inp)[..., class_id], esm_tokenizer)
         shap_values[..., class_id] = explainer(x_, fixed_context=1).values[0, 1:-1, 1:-1].T
     
     min_val, max_val = np.percentile(shap_values, [5, 95])
@@ -155,7 +155,9 @@ def visualize_betweenclasscoherence(structure_model, window_size = 21, title_leg
 def visualize_logits(seq, model, device, to_probs = False):
     max_length = len(seq)+2
     x_feats, masks = commons.tokenize_aminoacid_sequence(seq, [], max_length)
-    debug_dict = model(torch.FloatTensor(x_feats).to(device), torch.FloatTensor(masks).to(device), return_prev_compute = True)
+    debug_dict = model(torch.FloatTensor(x_feats).unsqueeze(0).to(device), 
+                       torch.FloatTensor(masks).unsqueeze(0).to(device), 
+                       return_prev_compute = True)
 
     correct_key_fn = lambda key: "class_logits" in key and "SharedVariable" not in key
     correct_keys = list(filter(correct_key_fn, debug_dict.keys()))
