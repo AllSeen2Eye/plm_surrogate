@@ -13,16 +13,15 @@ class StructureDataset(Dataset):
         self.max_len = max_len
         self.precompute = precompute
         self.given_distr = given_distr
-        if precompute:
-            self.x, self.y, self.mask = [], [], []
+        self.supervised = class_tokenizer is not None
+        
+        if precompute:    
+            n_vectors = 2+int(supervised)
+            self.data = [[]]*n_vectors
             for idx in range(len(data_source)):
-                outputs = self.compute_tensor(idx)
-                self.x.append(outputs[0])
-                self.y.append(outputs[1])
-                self.mask.append(outputs[2])
-            self.x = torch.stack(self.x, 0)
-            self.y = torch.stack(self.y, 0)
-            self.mask = torch.stack(self.mask, 0)
+                data_slice = self.compute_tensor(idx)
+                [self.data[i].append(data_slice[i]) for i in range(n_vectors)]
+            self.data = [torch.stack(self.data[i], 0) for i in range(n_vectors)]
 
     def __len__(self):
         return len(self.data_source)
@@ -31,7 +30,8 @@ class StructureDataset(Dataset):
         if not self.precompute:
             return self.compute_tensor(idx)
         else:
-            return (self.x[idx], self.y[idx], self.mask[idx])
+            return [self.data[i][idx] for i in range(n_vectors)]
+             
 
     def compute_tensor(self, idx):
         seq_col, y_col, other_col = ["seq", "label", "other"]
@@ -44,8 +44,10 @@ class StructureDataset(Dataset):
             max_len = self.max_len+2
 
         x_feats, masks = commons.tokenize_aminoacid_sequence(seq, others, max_len)
-        y_true = self.class_tokenizer.tokenize(label, len(seq), max_len)        
-        return (x_feats, y_true, masks)
+        if self.supervised:
+            y_true = self.class_tokenizer.tokenize(label, len(seq), max_len)        
+            return (x_feats, y_true, masks)
+        return (x_feats, masks)
 
 class ClassTokenizer():
     def __init__(self, full_class_str, y_tokens, given_distr, 
