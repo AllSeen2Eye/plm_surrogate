@@ -93,12 +93,11 @@ class ClassTokenizer():
             return self.sequence_tokenizer(y_input, seq_len, max_len)
 
 def collate_fn(tensor_tuple, bilinear):
-    outputs = zip(*tensor_tuple)
-    supervised = len(outputs) > 2
+    supervised = len(tensor_tuple[0]) > 2
     if supervised:
-        x_feats, y_true, masks = outputs
+        x_feats, y_true, masks = zip(*tensor_tuple)
     else:
-        x_feats, masks = outputs
+        x_feats, masks = zip(*tensor_tuple)
     x_feats = pad_sequence(x_feats, batch_first=True, padding_value=0)
     masks = pad_sequence(masks, batch_first=True, padding_value=0)
 
