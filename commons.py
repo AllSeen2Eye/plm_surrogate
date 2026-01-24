@@ -1,7 +1,36 @@
 import os
+import torch
+
 import numpy as np
 import pandas as pd
+
 from sklearn.decomposition import PCA
+from torch.nn.utils.rnn import pad_sequence
+
+def tokenize_aminoacid_sequence(seq, others, max_len):
+    other_feats = others.shape[-1] if len(others) > 0 else 0
+    x_feats = torch.zeros((max_len, 23+other_feats))
+    masks = torch.zeros((max_len, 1))
+    
+    seq_len = len(seq)
+    x_feats[0, 21] = 1
+    x_feats[seq_len+1, 22] = 1
+    
+    x_feats[1:seq_len+1, :21] = torch.from_numpy(np.reshape(np.array(list(seq)), (-1, 1)) == commons.x_tokens).to(float)
+    if other_feats > 0:
+        x_feats[1:seq_len+1, 23:] = torch.from_numpy(others).to(float)
+    masks[1:seq_len+1] = 1
+    return x_feats, masks
+
+def unsupervised_tokenizer(seqs, device):
+    seq_size = max([len(seq.split(" ")) for seq in seqs])
+    max_len = seq_size+2
+    
+    tensor_tuple = [tokenize_aminoacid_sequence(seq, [], max_len) for seq in seqs]
+    x_feats, masks = zip(*tensor_tuple)
+    x_feats = pad_sequence(x_feats, batch_first=True, padding_value=0)
+    masks = pad_sequence(masks, batch_first=True, padding_value=0)
+    return x_feats, masks
 
 def get_constants(aaprop_file_name, wp_file_name, n_features = 15):
     aa_data = pd.read_csv(aaprop_file_name, index_col="Name")
