@@ -1045,7 +1045,7 @@ class GeneralizedStructureModel(nn.Module):
             for input_batch in prog_datalist:
                 supervised = len(input_batch) > 2
                 if supervised:
-                    x_feats, y_true, masks = input_batch
+                    x_feats, masks, y_true = input_batch
                 else:
                     x_feats, masks = input_batch
                 x_feats, masks = x_feats.to(device), masks.to(device)
@@ -1069,7 +1069,7 @@ class GeneralizedStructureModel(nn.Module):
                 if device_type == "xla":
                     xm.mark_step()
 
-            predictions = torch.cat(predictions, 0), 
+            predictions = torch.cat(predictions, 0)
             masks_count = torch.cat(masks_count, 0)
             predictions = predictions[masks_count == 1].cpu().detach().numpy()
             
