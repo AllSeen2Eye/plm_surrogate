@@ -43,7 +43,7 @@ class StructureDataset(Dataset):
         else:
             max_len = self.max_len+2
 
-        x_feats, masks = tokenize_aminoacid_sequence(seq, others, max_len)
+        x_feats, masks = commons.tokenize_aminoacid_sequence(seq, others, max_len)
         y_true = self.class_tokenizer.tokenize(label, len(seq), max_len)        
         return (x_feats, y_true, masks)
 
@@ -104,21 +104,6 @@ class ClassTokenizer():
             y_true = pad_sequence(y_true, batch_first=True, padding_value=0)
                 
         return (x_feats, y_true, masks)
-
-def tokenize_aminoacid_sequence(seq, others, max_len):
-    other_feats = others.shape[-1] if len(others) > 0 else 0
-    x_feats = torch.zeros((max_len, 23+other_feats))
-    masks = torch.zeros((max_len, 1))
-    
-    seq_len = len(seq)
-    x_feats[0, 21] = 1
-    x_feats[seq_len+1, 22] = 1
-    
-    x_feats[1:seq_len+1, :21] = torch.from_numpy(np.reshape(np.array(list(seq)), (-1, 1)) == commons.x_tokens).to(float)
-    if other_feats > 0:
-        x_feats[1:seq_len+1, 23:] = torch.from_numpy(others).to(float)
-    masks[1:seq_len+1] = 1
-    return x_feats, masks
 
 def create_dataset(dataset, tokenizer, sampler_fn = SequentialSampler, given_distr = False):
     dataset_obj = StructureDataset(dataset, tokenizer, given_distr = given_distr)
