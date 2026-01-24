@@ -905,7 +905,14 @@ class ESMMimicryModule(nn.Module):
                 - torch.matmul(key_value, 15 * identity - torch.matmul(key_value, 7 * identity - key_value)),
             )
         return value
-        
+
+all_module_class_calls = [SharedVariableModule, InputOutputEmbeddingModule, PhysioChemical2Class, InterClassBiasCorrection, 
+                          SolubilityModule, AggregateNeighbourComparison, SingleAminoAcidInteraction, 
+                          BetweenClassCoherence, WiderBetweenClassCoherence, SquareAttnCorrection, 
+                          SeqWideImportantRegions, AttnDecompClassCoherence, WiderAttnDecompClassCoherence,
+                          EvenWiderAttnDecompClassCoherence, ESMMimicryModule]
+module_inits = dict([(call.__name__, call) for call in all_module_class_calls])
+
 ### DEFINITION OF THE MODEL OBJECT
 class GeneralizedStructureModel(nn.Module):
     #MODEL CONSTRUCTORS
