@@ -7,9 +7,9 @@ import mdtraj as md
 
 def load_files_from_pdb(pdb_id_list, save_dir):
     for dict_item in tqdm(pdb_id_list):
-        pdb_code, _ = dict_item
+        pdb_code, chain_id = dict_item
         pdb_data = requests.get(f"https://files.rcsb.org/download/{pdb_code}.pdb").text
-        with open(f"{save_dir}/{pdb_code}.pdb", "w") as pdb_file_pointer:
+        with open(f"{save_dir}/{pdb_code}_{chain_id}.pdb", "w") as pdb_file_pointer:
             pdb_file_pointer.write(pdb_data)
 
 def get_secondary_from_pdb(pdb_id_list, save_dir, use_chain_id = True):
