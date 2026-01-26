@@ -501,13 +501,14 @@ class SeqWideImportantRegions(nn.Module):
         return class_logits
 
 class AttnDecompClassCoherence(nn.Module): 
-    def __init__(self, n_features, hidden_state_dim, 
-                 model_type, max_std_sigma, init_dict = {}): 
+    def __init__(self, n_features, hidden_state_dim, model_type, 
+                 max_std_sigma, downsample_feats = None, init_dict = {}): 
         super().__init__()         
         
         self.init_dict = {"max_std_sigma":max_std_sigma}
         feat_i_classes = n_features + hidden_state_dim
-        downsample_feats = feat_i_classes
+        if downsample_feats is None:
+            downsample_feats = feat_i_classes
         names = ["all_x_all_ampl", "inp_decomp_vecs", 
                  "out_decomp_vecs", "all_x_all_bias", 
                  "knn_activations"] 
@@ -585,13 +586,14 @@ class AttnDecompClassCoherence(nn.Module):
 class WiderAttnDecompClassCoherence(nn.Module): 
     def __init__(self, n_features, hidden_state_dim, model_type, 
                  max_std_sigma_0, max_std_sigma_1, 
-                 init_dict = {}): 
+                 downsample_feats = None, init_dict = {}): 
         super().__init__() 
         
         self.init_dict = {"max_std_sigma_0":max_std_sigma_0,
                           "max_std_sigma_1":max_std_sigma_1}
         feat_i_classes = n_features + hidden_state_dim
-        downsample_feats = feat_i_classes
+        if downsample_feats is None:
+            downsample_feats = feat_i_classes
         names = ["all_x_all_ampl_1", "inp_decomp_vecs_1", 
                  "out_decomp_vecs_1", "all_x_all_bias_1", 
                  "pos_dep_ampl_weights_1", "knn_activations_1"] 
@@ -685,13 +687,14 @@ class WiderAttnDecompClassCoherence(nn.Module):
 class EvenWiderAttnDecompClassCoherence(nn.Module): 
     def __init__(self, n_features, hidden_state_dim, model_type, 
                  max_std_sigma_0, max_std_sigma_1, 
-                 init_dict = {}): 
+                 downsample_feats = None, init_dict = {}): 
         super().__init__() 
         
         self.init_dict = {"max_std_sigma_0":max_std_sigma_0,
                           "max_std_sigma_1":max_std_sigma_1}
         feat_i_classes = n_features + hidden_state_dim
-        downsample_feats = feat_i_classes
+        if downsample_feats is None:
+            downsample_feats = feat_i_classes
         names = ["all_x_all_ampl_2", "inp_decomp_vecs_2", 
                  "out_decomp_vecs_2", "all_x_all_bias_2", 
                  "pos_dep_ampl_weights_2", "knn_activations_2"] 
