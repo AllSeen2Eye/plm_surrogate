@@ -1211,7 +1211,7 @@ class GeneralizedStructureModel(nn.Module):
     def get_model_size(self, detailed = True, use_old_style = True, types = ["mu"]):
         execution_order = self.execution_order
         active_modules = self.active_modules 
-        param_size = {}
+        param_size = OrderedDict()
         
         for module_name in list(execution_order.keys()):
             use_module, module_fn = active_modules[module_name], execution_order[module_name]
@@ -1243,6 +1243,7 @@ class GeneralizedStructureModel(nn.Module):
         
         print()
         print(f"Parameter Count of {self.model_name} per Module:")
+        print()
         print(borders)
         print(printable_table)
         print(borders)
