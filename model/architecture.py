@@ -790,18 +790,23 @@ class EvenWiderAttnDecompClassCoherence(nn.Module):
             
 class ESMMimicryModule(nn.Module):
     def __init__(self, n_features, hidden_state_dim, model_type, downsampling_feats, 
-                 value_feats, n_heads, n_layers, n_landmarks, max_laplace_std_attn, init_dict = {}):
+                 value_feats, n_heads, n_layers, n_landmarks, max_laplace_std_attn,
+                 dsample_heads = "none", init_dict = {}):
         super().__init__()
-
+        
         self.init_dict = {"max_laplace_std_attn": max_laplace_std_attn, 
                           "n_landmarks": n_landmarks}
         feat_i_classes = n_features + hidden_state_dim
+        assert dsample_heads in ["none", "query", "value"], ("Incorrect downsampling mode for heads selected")
+        q_heads = n_heads if dsample_heads in ["none", "query"] else 1
+        v_heads = n_heads if dsample_heads in ["none", "value"] else 1
+                     
         names = ["collect_classes", "query_linear", "key_linear", 
                  "value_linear", "project_original", "aggregation_params"]
         shapes = [(1, value_feats*n_heads, hidden_state_dim),
-                  (n_layers, 1, n_heads, feat_i_classes+1, downsampling_feats),
+                  (n_layers, 1, q_heads, feat_i_classes+1, downsampling_feats),
                   (n_layers, 1, 1, feat_i_classes+1, downsampling_feats),
-                  (n_layers, 1, n_heads, feat_i_classes+1, value_feats),
+                  (n_layers, 1, v_heads, feat_i_classes+1, value_feats),
                   (n_layers, 1, 1, feat_i_classes+1, value_feats),
                   (n_layers, 1, n_heads, 1, 1)]
         if n_layers > 1:
