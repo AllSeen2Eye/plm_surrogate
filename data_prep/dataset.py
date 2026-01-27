@@ -20,7 +20,8 @@ class StructureDataset(Dataset):
             self.data = [[]]*n_vectors
             for idx in range(len(data_source)):
                 data_slice = self.compute_tensor(idx)
-                [self.data[i].append(data_slice[i]) for i in range(n_vectors)]
+                for i in range(n_vectors):
+                    self.data[i] = self.data[i] + [data_slice[i]]
             self.data = [torch.stack(self.data[i], 0) for i in range(n_vectors)]
 
     def __len__(self):
@@ -37,7 +38,7 @@ class StructureDataset(Dataset):
         seq_col, y_col, other_col = ["seq", "label", "other"]
 
         patch = self.data_source.iloc[idx]
-        seq, label, others = patch[seq_col], patch[y_col], patch[other_col]
+        seq, others = patch[seq_col], patch[other_col]
         if self.max_len is None:
             max_len = len(seq)+2
         else:
@@ -45,6 +46,7 @@ class StructureDataset(Dataset):
 
         x_feats, masks = commons.tokenize_aminoacid_sequence(seq, others, max_len)
         if self.supervised:
+            label = patch[y_col]
             y_true = self.class_tokenizer.tokenize(label, len(seq), max_len)        
             return (x_feats, y_true, masks)
         return (x_feats, masks)
