@@ -31,6 +31,7 @@ class StructureDataset(Dataset):
         if not self.precompute:
             return self.compute_tensor(idx)
         else:
+            n_vectors = 2+int(self.supervised)
             return [self.data[i][idx] for i in range(n_vectors)]
              
 
