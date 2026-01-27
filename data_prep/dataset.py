@@ -16,7 +16,7 @@ class StructureDataset(Dataset):
         self.supervised = class_tokenizer is not None
         
         if precompute:    
-            n_vectors = 2+int(supervised)
+            n_vectors = 2+int(self.supervised)
             self.data = [[]]*n_vectors
             for idx in range(len(data_source)):
                 data_slice = self.compute_tensor(idx)
