@@ -808,7 +808,7 @@ class ESMMimicryModule(nn.Module):
                   (n_layers, 1, 1, feat_i_classes+1, downsampling_feats),
                   (n_layers, 1, v_heads, feat_i_classes+1, value_feats),
                   (n_layers, 1, 1, feat_i_classes+1, value_feats),
-                  (n_layers, 1, n_heads, 1, 1)]
+                  (n_layers, 1, q_heads, 1, 1)]
         if n_layers > 1:
             names = names + ["collect_feats"]
             shapes = shapes + [(n_layers-1, value_feats*n_heads, feat_i_classes)]
