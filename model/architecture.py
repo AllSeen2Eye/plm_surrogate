@@ -798,8 +798,8 @@ class ESMMimicryModule(nn.Module):
                           "n_landmarks": n_landmarks}
         feat_i_classes = n_features + hidden_state_dim
         assert dsample_heads in ["none", "query", "value"], ("Incorrect downsampling mode for heads selected")
-        q_heads = n_heads if dsample_heads in ["none", "query"] else 1
-        v_heads = n_heads if dsample_heads in ["none", "value"] else 1
+        q_heads = n_heads if dsample_heads in ["none", "value"] else 1
+        v_heads = n_heads if dsample_heads in ["none", "query"] else 1
                      
         names = ["collect_classes", "query_linear", "key_linear", 
                  "value_linear", "project_original", "aggregation_params"]
