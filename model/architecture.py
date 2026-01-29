@@ -808,7 +808,7 @@ class ESMMimicryModule(nn.Module):
                   (n_layers, 1, 1, feat_i_classes+1, downsampling_feats),
                   (n_layers, 1, v_heads, feat_i_classes+1, value_feats),
                   (n_layers, 1, 1, feat_i_classes+1, value_feats),
-                  (n_layers, 1, q_heads, 1, 1)]
+                  (n_layers, 1, n_heads, 1, 1)]
         if n_layers > 1:
             names = names + ["collect_feats"]
             shapes = shapes + [(n_layers-1, value_feats*n_heads, feat_i_classes)]
@@ -859,6 +859,7 @@ class ESMMimicryModule(nn.Module):
         rel_positions = positions[None, None, None, :] - positions[None, None, :, None]  # [1, 1, L, L]
         sigmas = torch.abs(lp.aggregation_params[index]) + self.init_dict["max_laplace_std_attn"]
         pos_mask = -sigmas*torch.abs(rel_positions)
+        E_q = E_q*(sigmas*0+1)
         
         if n_landmarks is None:
             
