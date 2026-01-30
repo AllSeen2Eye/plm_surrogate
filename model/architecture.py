@@ -501,25 +501,34 @@ class SeqWideImportantRegions(nn.Module):
         return class_logits
 
 class AttnDecompClassCoherence(nn.Module): 
-    def __init__(self, n_features, hidden_state_dim, model_type, 
-                 max_std_sigma, downsample_feats = None, init_dict = {}): 
+    def __init__(self, n_features, hidden_state_dim, model_type, max_std_sigma, 
+                 downsample_feats = None, decompose_axa = False, init_dict = {}): 
         super().__init__()         
         
         self.init_dict = {"max_std_sigma":max_std_sigma}
-        feat_i_classes = n_features + hidden_state_dim
+        self.decompose_axa = decompose_axa
+        feat_i_classes = n_features + hidden_state_dim          
         if downsample_feats is None:
             downsample_feats = feat_i_classes
-        names = ["all_x_all_ampl", "inp_decomp_vecs", 
-                 "out_decomp_vecs", "all_x_all_bias", 
-                 "knn_activations"] 
-        shapes = [(5, downsample_feats, hidden_state_dim), (5, downsample_feats, 1), 
-                  (5, 1, hidden_state_dim), (3, 1, hidden_state_dim), (2, feat_i_classes, downsample_feats)] 
+            
+        names = ["inp_decomp_vecs", "out_decomp_vecs", 
+                 "all_x_all_bias", "knn_activations"]
+        shapes = [(5, downsample_feats, 1), (5, 1, hidden_state_dim), 
+                  (3, 1, hidden_state_dim), (2, feat_i_classes, downsample_feats)
+                  
+        if not decompose_axa:
+            names = ["all_x_all_ampl"] + names
+            shapes = [(5, downsample_feats, hidden_state_dim)] + shapes
+        else:
+            names = ["all_x_all_base", "all_x_all_weights"] + names
+            shapes = [(1, downsample_feats, hidden_state_dim), (5, 1, 1)] + shapes
         self.parameter_list = create_parameter_list(names, shapes, model_type, init_dict) 
     
     def forward(self, input_dict): 
         lp = unpack_parameter_list(self.parameter_list) #local_params 
-        class_attn_rec_0, class_attn_rec_1 = lp.all_x_all_ampl[0], lp.all_x_all_ampl[1], 
-        class_attn_rec_2, class_attn_rec_3 = lp.all_x_all_ampl[2], lp.all_x_all_ampl[3:]   
+        all_x_all_ampl = lp.all_x_all_ampl if not self.decompose_axa else lp.all_x_all_base*lp.all_x_all_weights
+        class_attn_rec_0, class_attn_rec_1 = all_x_all_ampl[0], all_x_all_ampl[1], 
+        class_attn_rec_2, class_attn_rec_3 = all_x_all_ampl[2], all_x_all_ampl[3:]   
         b_attn_0, b_attn_1, b_attn_2 = lp.all_x_all_bias
 
         device = input_dict["device"] 
@@ -585,7 +594,7 @@ class AttnDecompClassCoherence(nn.Module):
 
 class WiderAttnDecompClassCoherence(nn.Module): 
     def __init__(self, n_features, hidden_state_dim, model_type, 
-                 max_std_sigma_0, max_std_sigma_1, 
+                 max_std_sigma_0, max_std_sigma_1, decompose_axa = False,
                  downsample_feats = None, init_dict = {}): 
         super().__init__() 
         
@@ -594,18 +603,25 @@ class WiderAttnDecompClassCoherence(nn.Module):
         feat_i_classes = n_features + hidden_state_dim
         if downsample_feats is None:
             downsample_feats = feat_i_classes
-        names = ["all_x_all_ampl_1", "inp_decomp_vecs_1", 
-                 "out_decomp_vecs_1", "all_x_all_bias_1", 
+        self.decompose_axa = decompose_axa
+            
+        names = ["inp_decomp_vecs_1", "out_decomp_vecs_1", "all_x_all_bias_1", 
                  "pos_dep_ampl_weights_1", "knn_activations_1"] 
-        shapes = [(5, downsample_feats, hidden_state_dim), (5, downsample_feats, 1), 
-                  (5, 1, hidden_state_dim), (5, 1, hidden_state_dim), 
+        shapes = [(5, downsample_feats, 1), (5, 1, hidden_state_dim), (5, 1, hidden_state_dim), 
                   (1, feat_i_classes, hidden_state_dim), (2, feat_i_classes, downsample_feats)] 
+        if not decompose_axa:
+            names = ["all_x_all_ampl_1"] + names
+            shapes = [(5, downsample_feats, hidden_state_dim)] + shapes
+        else:
+            names = ["all_x_all_base_1", "all_x_all_weights_1"] + names
+            shapes = [(1, downsample_feats, hidden_state_dim), (5, 1, 1)] + shapes
         self.parameter_list = create_parameter_list(names, shapes, model_type, init_dict) 
-        
+    
     def forward(self, input_dict): 
         lp = unpack_parameter_list(self.parameter_list) #local_params 
-        class_attn_rec_0, class_attn_rec_1 = lp.all_x_all_ampl_1[0], lp.all_x_all_ampl_1[1], 
-        class_attn_rec_2, class_attn_rec_3 = lp.all_x_all_ampl_1[2], lp.all_x_all_ampl_1[3:]   
+        all_x_all_ampl = lp.all_x_all_ampl_1 if not self.decompose_axa else lp.all_x_all_base_1*lp.all_x_all_weights_1
+        class_attn_rec_0, class_attn_rec_1 = all_x_all_ampl[0], all_x_all_ampl[1], 
+        class_attn_rec_2, class_attn_rec_3 = all_x_all_ampl[2], all_x_all_ampl[3:]     
         b_attn_0, b_attn_1, b_attn_2, b_attn_3, class_multiplier = lp.all_x_all_bias_1
 
         device = input_dict["device"] 
@@ -686,7 +702,7 @@ class WiderAttnDecompClassCoherence(nn.Module):
             
 class EvenWiderAttnDecompClassCoherence(nn.Module): 
     def __init__(self, n_features, hidden_state_dim, model_type, 
-                 max_std_sigma_0, max_std_sigma_1, 
+                 max_std_sigma_0, max_std_sigma_1, decompose_axa = False, 
                  downsample_feats = None, init_dict = {}): 
         super().__init__() 
         
@@ -695,19 +711,25 @@ class EvenWiderAttnDecompClassCoherence(nn.Module):
         feat_i_classes = n_features + hidden_state_dim
         if downsample_feats is None:
             downsample_feats = feat_i_classes
-        names = ["all_x_all_ampl_2", "inp_decomp_vecs_2", 
-                 "out_decomp_vecs_2", "all_x_all_bias_2", 
+        self.decompose_axa = decompose_axa
+                     
+        names = ["inp_decomp_vecs_2", "out_decomp_vecs_2", "all_x_all_bias_2", 
                  "pos_dep_ampl_weights_2", "knn_activations_2"] 
-        shapes = [(5, downsample_feats, hidden_state_dim), (5, downsample_feats, 1), 
-                  (5, 1, hidden_state_dim), (5, 1, hidden_state_dim), 
+        shapes = [(5, downsample_feats, 1), (5, 1, hidden_state_dim), (5, 1, hidden_state_dim), 
                   (1, feat_i_classes, hidden_state_dim), (2, feat_i_classes, downsample_feats)] 
+        if not decompose_axa:
+            names = ["all_x_all_ampl_2"] + names
+            shapes = [(5, downsample_feats, hidden_state_dim)] + shapes
+        else:
+            names = ["all_x_all_base_2", "all_x_all_weights_2"] + names
+            shapes = [(1, downsample_feats, hidden_state_dim), (5, 1, 1)] + shapes
         self.parameter_list = create_parameter_list(names, shapes, model_type, init_dict) 
     
     def forward(self, input_dict): 
         lp = unpack_parameter_list(self.parameter_list) #local_params 
-        class_attn_rec_0, class_attn_rec_1 = lp.all_x_all_ampl_2[0], lp.all_x_all_ampl_2[1], 
-        class_attn_rec_2, class_attn_rec_3 = lp.all_x_all_ampl_2[2], lp.all_x_all_ampl_2[3:]   
-        b_attn_0, b_attn_1, b_attn_2, b_attn_3, class_multiplier = lp.all_x_all_bias_2
+        all_x_all_ampl = lp.all_x_all_ampl_2 if not self.decompose_axa else lp.all_x_all_base_2*lp.all_x_all_weights_2
+        class_attn_rec_0, class_attn_rec_1 = all_x_all_ampl[0], all_x_all_ampl[1], 
+        class_attn_rec_2, class_attn_rec_3 = all_x_all_ampl[2], all_x_all_ampl[3:]     
 
         device = input_dict["device"] 
         masks = input_dict["masks"] 
