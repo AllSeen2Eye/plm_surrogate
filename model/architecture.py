@@ -526,7 +526,7 @@ class AttnDecompClassCoherence(nn.Module):
     
     def forward(self, input_dict): 
         lp = unpack_parameter_list(self.parameter_list) #local_params 
-        if not self.decompose_axa
+        if not self.decompose_axa:
             all_x_all_ampl = lp.all_x_all_ampl 
         else:
             all_x_all_ampl = lp.all_x_all_base + (lp.all_x_all_weights)
@@ -622,7 +622,7 @@ class WiderAttnDecompClassCoherence(nn.Module):
     
     def forward(self, input_dict): 
         lp = unpack_parameter_list(self.parameter_list) #local_params 
-        if not self.decompose_axa
+        if not self.decompose_axa:
             all_x_all_ampl = lp.all_x_all_ampl_1
         else:
             all_x_all_ampl = lp.all_x_all_base_1 + (lp.all_x_all_weights_1)
@@ -733,7 +733,7 @@ class EvenWiderAttnDecompClassCoherence(nn.Module):
     
     def forward(self, input_dict): 
         lp = unpack_parameter_list(self.parameter_list) #local_params 
-        if not self.decompose_axa
+        if not self.decompose_axa:
             all_x_all_ampl = lp.all_x_all_ampl_2
         else:
             all_x_all_ampl = lp.all_x_all_base_2 + (lp.all_x_all_weights_2)
