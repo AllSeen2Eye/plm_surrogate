@@ -529,7 +529,7 @@ class AttnDecompClassCoherence(nn.Module):
         if not self.decompose_axa
             all_x_all_ampl = lp.all_x_all_ampl 
         else:
-            all_x_all_ampl = lp.all_x_all_base + (lp.all_x_all_weights + 1)
+            all_x_all_ampl = lp.all_x_all_base + (lp.all_x_all_weights)
         class_attn_rec_0, class_attn_rec_1 = all_x_all_ampl[0], all_x_all_ampl[1], 
         class_attn_rec_2, class_attn_rec_3 = all_x_all_ampl[2], all_x_all_ampl[3:]   
         b_attn_0, b_attn_1, b_attn_2 = lp.all_x_all_bias
@@ -625,7 +625,7 @@ class WiderAttnDecompClassCoherence(nn.Module):
         if not self.decompose_axa
             all_x_all_ampl = lp.all_x_all_ampl_1
         else:
-            all_x_all_ampl = lp.all_x_all_base_1 + (lp.all_x_all_weights_1 + 1)
+            all_x_all_ampl = lp.all_x_all_base_1 + (lp.all_x_all_weights_1)
         class_attn_rec_0, class_attn_rec_1 = all_x_all_ampl[0], all_x_all_ampl[1], 
         class_attn_rec_2, class_attn_rec_3 = all_x_all_ampl[2], all_x_all_ampl[3:]     
         b_attn_0, b_attn_1, b_attn_2, b_attn_3, class_multiplier = lp.all_x_all_bias_1
@@ -736,7 +736,7 @@ class EvenWiderAttnDecompClassCoherence(nn.Module):
         if not self.decompose_axa
             all_x_all_ampl = lp.all_x_all_ampl_2
         else:
-            all_x_all_ampl = lp.all_x_all_base_2 + (lp.all_x_all_weights_2 + 1)
+            all_x_all_ampl = lp.all_x_all_base_2 + (lp.all_x_all_weights_2)
         class_attn_rec_0, class_attn_rec_1 = all_x_all_ampl[0], all_x_all_ampl[1], 
         class_attn_rec_2, class_attn_rec_3 = all_x_all_ampl[2], all_x_all_ampl[3:]
         b_attn_0, b_attn_1, b_attn_2, b_attn_3, class_multiplier = lp.all_x_all_bias_2
