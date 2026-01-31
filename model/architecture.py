@@ -514,7 +514,7 @@ class AttnDecompClassCoherence(nn.Module):
         names = ["inp_decomp_vecs", "out_decomp_vecs", 
                  "all_x_all_bias", "knn_activations"]
         shapes = [(5, downsample_feats, 1), (5, 1, hidden_state_dim), 
-                  (3, 1, hidden_state_dim), (2, feat_i_classes, downsample_feats)
+                  (3, 1, hidden_state_dim), (2, feat_i_classes, downsample_feats)]
                   
         if not decompose_axa:
             names = ["all_x_all_ampl"] + names
