@@ -729,7 +729,8 @@ class EvenWiderAttnDecompClassCoherence(nn.Module):
         lp = unpack_parameter_list(self.parameter_list) #local_params 
         all_x_all_ampl = lp.all_x_all_ampl_2 if not self.decompose_axa else lp.all_x_all_base_2*lp.all_x_all_weights_2
         class_attn_rec_0, class_attn_rec_1 = all_x_all_ampl[0], all_x_all_ampl[1], 
-        class_attn_rec_2, class_attn_rec_3 = all_x_all_ampl[2], all_x_all_ampl[3:]     
+        class_attn_rec_2, class_attn_rec_3 = all_x_all_ampl[2], all_x_all_ampl[3:]
+        b_attn_0, b_attn_1, b_attn_2, b_attn_3, class_multiplier = lp.all_x_all_bias_2
 
         device = input_dict["device"] 
         masks = input_dict["masks"] 
